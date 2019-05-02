@@ -1,0 +1,1942 @@
+!! **********************************************************************
+!!  FILE:        RACM2.5M4.mch - update MACR scheme with geos-chem
+!!  DATE:        Sept 4, 2012 - update MVK + O3 rxn
+!!  VERSION:     Final Frozen Version - all updates from reviewers
+!!  ID: RACM Version 2.5M1 - updates from IUPAC JAN 2008
+!!  LAST UPDATE: Sept 4, 2012
+!!  --------------------------------------------------------------------
+!!  Based on REGIONAL ATMOSPHERIC CHEMISTRY MECHANISM  (RACM)  Version 1.3
+!!  Reference: W.R. Stockwell, F. Kirchner, M. Kuhn, and S. Seefeld, "A 
+!!  New Mechanism for Regional Atmospheric Chemistry Modeling", J. of
+!!  Geophys. Res., 1997.
+!!  --------------------------------------------------------------------
+!!  FOR MORE INFORMATION REGARDING THIS MECHANISM CONTACT:
+!!  Wendy S. Goliff 
+!!  CE-CERT
+!!  UC Riverside
+!!  1084 Columbia Ave
+!!  Riverside, CA 92507
+!!  E-MAIL:      wendyg@cert.ucr.edu
+!!  Telephone:   (951) 781-5665
+!!  FAX:         
+!!          OR
+!!  William R. Stockwell
+!!  Department of Chemistry, Room 120
+!!  Howard University
+!!  525 College Street, NW
+!!  Washington DC 20059
+!!  E-MAIL: William.R.Stockwell@gmail.com
+!!  Telephone: (202) 806-6913
+!!  FAX: (202) 806-5442 
+! **********************************************************************
+! The RACM2 mechanism is based upon the earlier Regional Atmospheric
+! Chemistry Mechanism (RACM) mechanism.  It is intended to be valid for 
+! conditions ranging from remote to polluted and from the Earth's
+! surface through the upper troposphere.  The RACM2 mechanism includes
+! 356 reactions and 117 total species: 17 stable inorganic species, 4 
+! inorganic intermediates, 54 stable organic species (4 of these are
+! primarily of biogenic origin) and 42 organic intermediates.
+! **********************************************************************
+! **********************************************************************
+! Reformatted by Golam Sarwar in September 2012 for making it compatible with CMAQ 
+! Following species have been removed from the product list since these are used as constants in CMAQ - CH4, H2, O2
+! Following species have been removed from the product list since these are used as input to CMAQ - H2O
+! Following species have been removed from the product list since since CMAQ does not track these species - CO2 
+!
+!
+! Modified for incorporating secondary sulfate and SOA mechanism
+!  Added SULRXN - counter species for aerosol from SO2 + OH reaction 
+!  Added ISOPRXN - counter species for aerosol from ISO + OH reaction 
+!  Added TRPRXN - counter species for aerosol from API and LIM  
+!  Added TOLRO2, XYLRO2, BENZRO2 - first generation products from TOL, XYL and BEN that further react with NO and NO2 to produce SVOC
+!  Added two reactions for TOLRO2, added TOLNRXN, TOLHRXN - counter species for aerosol from TOL
+!  Added two reactions for XYLRO2, added XYLNRXN, XYLHRXN - counter species for aerosol from XYL and XYO
+!  Added two reactions for BENZRO2 added BNZNRXN, BNZHRXN - counter species for aerosol from BEN
+!  Added three reactions for SESQ from sesquiterpene, added SESQRXN - counter species for aerosol from SESQ
+!  BEN is changed to BENZENE since SOA module is expecting BENZENE, not BEN
+!  ADDED ALK5 FOR SOA PRODUCTION from HC8
+!
+!  Rate constant for R051 has a special expression 
+!
+!  Revised the rate constant of R65 based on IUPAC2010
+!
+!  Wendy Goliff corrected type errors in R110 and R111
+!
+! B.Hutzell 07/10/14
+! added inorganic heterogeneous reactions for N2O5 and NO2, oligomerization reactions for
+! SOA species and aging reactions for primary organic carbon and non-carbon aerosol species
+! B.Hutzell 11/3/14
+!  -changed ALK5RXN yield in reaction <R075> from 1.0 to 0.47 based on SOA updates
+!  suggested by H.Pye's for cb05e51_ae6_aq
+!  -Modified by splitting oligomerization into two reactions: one for each
+!   Alkene SOA species. The new species were introduced in cb05e51_ae6_aq
+! Golam Sarwar 12/02/14
+!  -Added a simple halogen chemistry over sea-water
+! Golam Sarwar 6/25/15
+!  -Revised the simple halogen chemistry over sea-water using results of two-way CMAQ model and detailed halogen chemistry
+! Golam Sarwar 6/29/15
+! - Updated SOA formation; sse CB05 changes done by Havala Pye for details   
+!   - Added ISOPRXN counter to ISO + NO3 reaction to add SOA formation 
+!   - Added SOAALK + OH reaction for SOA production and removed ALK5RXN from R075 
+!   - Added Napthlane reaction for SOA    
+!   - Added heterogeneous uptake of IEPOX on acidic aerosol 
+!   - Yield of XYLRO2 in R083 is reduced to 0.98 to prevent double counting of SOA production from XYM since napthlanene is also included in XYM
+!   - 0.98 is the emission ratio of (XYM-NAPTH)/XYM for July 2011
+!------------------------------------------------------------------------------ 
+!Azimeh Zare - start working on RACM2 mech 7/15/2016
+! Almost all reactions for isopren chemisty under high and low NOx conditions 
+! are modified following Paulot et al., 2009a and 2009b and for MTN following Browne et al. 2014
+! and much more updates has been done on the night-time isoprene chemistry
+! following Schwantes et al., 2015. For more details see Zare et al., 2018 (ACP) and 2019(in prepration)
+!------------------------------------------------------------------------------
+!Azimeh Zare
+!Adding hydrolysis reactions for PONs
+!
+!-------------------------------------------------------------------------------
+RACM2_AE6_AQ
+
+REACTIONS[CM] =
+
+<R001>  O3                 =  O3P                     # 1.0/<O3O3P_NASA06>;
+<R002>  O3                 =  O1D                     # 1.0/<O3O1D_NASA06>;
+<R003>  H2O2               =  2.0*HO                  # 1.0/<H2O2_RACM2>;
+<R004>  NO2                =  O3P      + NO           # 1.0/<NO2_RACM2>;
+<R005>  NO3                =  NO                      # 1.0/<NO3NO_RACM2>;
+<R006>  NO3                =  O3P      + NO2          # 1.0/<NO3NO2_RACM2>;
+<R007>  HONO               =  HO       + NO           # 1.0/<HONO_RACM2>;
+<R008>  HNO3               =  HO       + NO2          # 1.0/<HNO3_RACM2>;
+<R009>  HNO4               =  0.20*HO  + 0.80*HO2
+                                       + 0.80*NO2
+                                       + 0.20*NO3     # 1.0/<HNO4_RACM2>;
+<R010>  HCHO               =  CO                      # 1.0/<HCHO_MOL_RACM2>;
+<R011>  HCHO               =  HO2      + HO2      
+                                       + CO           # 1.0/<HCHO_RAD_RACM2>;
+<R012>  ACD                =  HO2      + MO2      
+                                       + CO           # 1.0/<CH3CHO_RACM2>;
+<R013>  ALD                =  HO2      + ETHP  
+                                       + CO           # 1.0/<ALD_RACM2>;
+<R014>  ACT                =  MO2      + ACO3         # 1.0/<CH3COCH3_RACM2>;
+<R015>  UALD               =  1.22*HO2 + 0.784*ACO3
+                                       + 1.22*CO
+                                       + 0.35*HCHO
+                                       + 0.434*ALD
+                                       + 0.216*KET    # 1.0/<UALD_RACM2>;
+<R016>  MEK                =  0.50*MO2 + 0.50*ETHP
+                                       + ACO3         # 1.0/<MEK_RACM2>;
+<R017>  KET                =  ETHP     + ACO3         # 1.0/<KET_RACM2>;
+<R018>  HKET               =  HO2      + ACO3 
+                                       + HCHO         # 1.0/<HKET_RACM2>;
+<R019>  MACR               = 0.5*MACP  + 0.175*ACO3
+                                       + 0.5*HCHO
+                                       + 0.325*MO2
+                                       + 0.825*CO
+                                       + HO2          # 1.0/<MACR_RACM2>;
+<R020>  MVK                = 0.6*OLT   + 0.6*CO
+                                       + 0.4*ACO3
+                                       + 0.4*MO2      # 1.0/<MVK_RACM2>;
+<R021>  GLY                =  2*CO                    # 1.0/<GLYH2_RACM2>;
+<R022>  GLY                =  HCHO     + CO           # 1.0/<GLYF_RACM2>;
+<R023>  GLY                =  2*HO2    + 2*CO         # 1.0/<GLYHX_RACM2>;
+<R024>  MGLY               =  HO2      + ACO3       
+                                       + CO           # 1.0/<MGLY_RACM2>;
+<R025>  DCB1               =  1.5*HO2  + 0.25*ACO3
+                                       + 0.2*XO2
+                                       + CO
+                                       + 0.5*GLY
+                                       + 0.5*MGLY     # 1.0/<MGLY_RACM2>;
+<R026>  DCB2               =  1.5*HO2  + 0.25*ACO3
+                                       + 0.2*XO2
+                                       + CO
+                                       + 0.5*GLY
+                                       + 0.5*MGLY     # 1.0/<MGLY_RACM2>;
+<R027>  BALD               = CHO       + HO2
+                                       + CO           # 1.0/<BALD_RACM2>;
+<R028>  OP1                = HO        + HO2
+                                       + HCHO         # 1.0/<OP1_RACM2>;
+<R029>  OP2                = HO        + HO2
+                                       + ALD          # 1.0/<OP1_RACM2>;
+<R030>  PAA                = HO        + MO2          # 1.0/<PAA_RACM2>;
+<R031>  ONIT               = HO2       + NO2
+                                       + 0.20*ALD 
+                                       + 0.80*KET     # 1.0/<ONIT_RACM2>;
+<R032>  PAN                = ACO3      + NO2          # 1.0/<PAN1_RACM2>;
+<R033>  PAN                = MO2       + NO3          # 1.0/<PAN2_RACM2>;
+<R034>  O3   + HO          = HO2                      # 1.7E-12 @ 940.;
+<R035>  O3   + HO2         = HO                       # 1.0E-14 @ 490.;
+<R036>  O3   + NO          = NO2                      # 1.4E-12 @ 1310.;
+<R037>  O3   + NO2         = NO3                      # 1.4E-13 @ 2470.;
+<R038>  O3P  + O2    + M   = O3                       # 5.74E-34 ^ -2.6; 
+<R039>  O3P  + O3          =                          # 8.0E-12 @ 2060.;
+<R040>  O1D  + O2          = O3P                      # 3.2E-11 @ 67.;
+<R041>  O1D  + N2          = O3P                      # 2.0E-11 @ -130.;
+<R042>  O1D  + H2O         = 2.0*HO                   # 2.14E-10;
+<R043>  H2   + HO          = HO2                      # 7.70E-12 @ 2100.;
+<R044>  HO   + HO2         =                          # 4.8E-11 @ -250.;
+<R045>  HO2  + HO2         = H2O2                  %3 # 2.2E-13 @ -600. &                                              
+                                                        1.9E-33 @ -980.;
+<R046>  HO2  + HO2 + H2O   = H2O2                  %3 # 3.08E-34 @ -2800. &
+                                                        2.59E-54 @ -3180.;
+<R047>  H2O2 + HO          = HO2                      # 2.9E-12 @ 160.;
+<R048>  NO   + O3P         = NO2                      # 9.0E-32 ^ -1.5 &
+                                                        3.0E-11 ^  0.0 ;
+<R049>  NO   + HO          = HONO                     # 7.0E-31 ^ -2.6 &
+                                                        3.6E-11 ^ -0.1;
+<R050>  NO   + HO2         = NO2        + HO          # 3.45E-12 @ -270.;
+<R051>  NO   + HO2         = HNO3                  %3 # 6.095e-14^-1.0@-270.0& 
+                                                        6.857e-34^1.0@-270.0&
+                                                       -5.968e-14@-270.0;
+<R052>  NO   + NO    + O2  = 2.0*NO2                  # 3.3E-39 @ -530.;
+<R053>  HONO + HO          = NO2                      # 2.5E-12 @ -260.; 
+<R054>  NO2  + O3P         = NO                       # 5.5E-12 @ -188.;
+<R055>  NO2  + O3P         = NO3                      # 2.5E-31 ^ -1.8 &
+                                                        2.2E-11 ^ -0.7;
+<R056>  NO2  + HO          = HNO3                     # 1.51E-30 ^ -3.0 &                             
+                                                        2.58E-11 ^ 0.0;                                                      
+<R057>  HNO3 + HO          = NO3                   %2 # 2.4E-14 @ -460 & 
+                                                        2.7E-17 @ -2199 &
+                                                        6.5E-34 @ -1335;
+<R058>  NO3  + HO          = HO2       + NO2          # 2.0E-11; 
+<R059>  NO3  + HO2         = 0.7*HO    + 0.7*NO2
+                                       + 0.3*HNO3     # 4.0E-12;
+<R060>  NO3  + NO          = 2.0*NO2                  # 1.8E-11 @ -110.;
+<R061>  NO3  + NO2         = NO        + NO2          # 4.5E-14 @ 1260.;
+<R062>  NO3  + NO3         = 2.0*NO2                  # 8.5E-13 @ 2450.;
+<R063>  NO3  + NO2         = N2O5                     # 2.0E-30 ^ -4.4 & 
+                                                        1.4E-12 ^ -0.7;
+<R064>  N2O5               = NO2       + NO3          # 2.70E-27 @ -11000.0
+                                                        *E<R063>;
+<R065>  N2O5 + H2O         = 2.0*HNO3                 # 1.0E-22;
+<R066>  NO2  + HO2         = HNO4                     # 2.0E-31 ^ -3.4 &
+                                                        2.9E-12 ^ -1.1;
+<R067>  HNO4               = HO2       + NO2          # 2.10E-27 @ -10900.0
+                                                        *E<R066>;
+<R068>  HNO4 + HO          = NO2                      # 1.3E-12 @ -380.;
+<R069>  SO2  + HO          = HO2       + SULF         
+                                       + SULRXN       # 3.3E-31 ^ -4.3 &
+                                                        1.6E-12 ^ 0.0;
+<R070>  CO   + HO          = HO2                   %3 # 1.44E-13 @ 0.0 & 
+                                                        2.88E-33 @ 0.0; 
+<R071>  CH4  + HO          = MO2                      # 1.85E-12 @ 1690.;
+<R072>  ETH  + HO          = ETHP                     # 6.90E-12 @ 1000.;
+<R073>  HC3  + HO          = HC3P                     # 7.68E-12 @ 370.;
+<R074>  HC5  + HO          = HC5P                     # 1.01E-11 @ 245.;
+<R075>  HC8  + HO          = 0.049*HO2 + 0.951*HC8P
+                                       + 0.025*ALD
+                                       + 0.024*HKET   # 2.82E-11 @ 273.;
+<R076>  ETE  + HO          = ETEP                     # 1.0E-28 ^ -4.5 &
+                                                        8.8E-12 ^ -0.85;
+<R077>  OLT  + HO          = OLTP                     # 5.72E-12 @ -500.;
+<R078>  OLI  + HO          = OLIP                     # 1.33E-11 @ -500.;
+<R079>  DIEN + HO          = OLIP                     # 1.48E-11 @ -448.;
+<R080>  ACE  + HO          = 0.650*HO  + 0.350*HO2
+                                       + 0.350*CO
+                                       + 0.650*GLY
+                                       + 0.350*ORA1   # 5.5E-30 ^ 0.0 &  
+                                                        8.3E-13 ^ 2.0;
+<R081>  BENZENE + HO       = 0.648*HO2 + 0.352*BENP
+                                       + 0.118*EPX
+                                       + 0.530*PHEN
+                                       + 1.0*BENZRO2  # 2.33E-12 @ 193.;
+<R082>  TOL + HO           = 0.177*HO2 + 0.763*TR2
+                                       + 0.060*TLP1
+                                       + 0.177*CSL
+                                       + 1.0*TOLRO2   # 1.81E-12 @ -354.;
+<R083>  XYM  + HO         = 0.177*HO2 + 0.763*XY2
+                                       + 0.060*XYL1
+                                       + 0.177*CSL    
+                                       + 0.98*XYLRO2  # 2.31E-11;
+<R084>  XYP  + HO          = 0.177*HO2 + 0.763*XY2
+                                       + 0.060*XYL1
+                                       + 0.177*CSL
+                                       + 1.0*XYLRO2   # 1.43E-11;
+<R085>  XYO  + HO          = 0.177*HO2 + 0.763*XYO2 
+                                       + 0.060*XYL1
+                                       + 0.177*CSL    
+                                       + 1.0*XYLRO2   # 1.36E-11;
+<R086>  ISO  + HO          = ISOP                     # 2.70E-11 @ -390.;
+<R087>  API  + HO          = APIP                     # 1.21E-11 @ -440.;
+<R088>  LIM  + HO          = LIMP                     # 4.20E-11 @ -401.;
+<R089>  HCHO + HO          = HO2       + CO           # 5.50E-12 @ -125.;                                         
+<R090>  ACD  + HO          = ACO3                     # 4.70E-12 @ -345.;                                         
+<R091>  ALD  + HO          = RCO3                     # 4.90E-12  @ -405.;          
+<R092>  ACT  + HO          = ACTP                     # 4.56E-14 ^ 3.65 @ 427;
+<R093>  MEK  + HO          = MEKP                     # 1.5E-12 @ 90.;
+<R094>  KET  + HO          = KETP                     # 2.8E-12 @ -10.;   
+<R095>  HKET + HO          = HO2        + MGLY        # 3.0E-12;
+<R096>  MACR + HO          = 0.53*MACP  + 0.47*MACRO2  # 8.00E-12 @ -380.;
+<R097>  MVK  + HO          = MVKP                      # 2.60E-12 @ -610.;
+<R098>  UALD + HO          = 0.313*ACO3 + 0.687*UALP  # 5.77E-12 @ -533.;         
+<R099>  GLY  + HO          = HO2        + 2.0*CO      # 1.1E-11;
+<R100>  MGLY + HO          = ACO3       + CO          # 9.26E-13 @ -830.;
+<R101>  DCB1 + HO          = 0.52*HO2   + 0.33*CO 
+                                        + 0.40*ALD
+                                        + 0.78*KET 
+                                        + 0.10*GLY 
+                                        + 0.01*MGLY   # 2.8E-11 @ -175.;
+<R102>  DCB2 + HO          = 0.52*HO2   + 0.33*CO 
+                                        + 0.13*MEK 
+                                        + 0.10*GLY 
+                                        + 0.01*MGLY 
+                                        + 0.78*OP2    # 2.8E-11 @ -175.;
+<R103>  DCB3 + HO          = 0.56*HO2   + 0.21*MACP 
+                                        + 0.11*CO 
+                                        + 0.27*GLY 
+                                        + 0.01*MGLY 
+                                        + 0.79*OP2   # 1.00E-11;
+<R104>  BALD + HO          = BALP                    # 5.32E-12 @ -243.;
+<R105>  PHEN + HO          = 0.73*HO2   + 0.20*ADDC 
+                                        + 0.07*CHO
+                                        + 0.73*MCT   # 6.75E-12 @ -405.;
+<R106>  CSL  + HO          = 0.73*HO2   + 0.20*ADDC 
+                                        + 0.07*CHO
+                                        + 0.73*MCT    # 4.65E-11 @ 0.0;
+<R107>  EPX  + HO          = HO2        + XO2
+                                        + CO
+                                        + ALD         # 2.8E-11 @ -175.;
+<R108>  MCT  + HO          = MCTO                     # 2.05E-10 @ 0.0;
+<R109>  MOH  + HO          = HO2        + HCHO        # 2.85E-12 @ 345.;
+<R110>  EOH  + HO          = HO2        + ACD         # 3.0E-12 @ -20.;
+<R111>  ROH  + HO          = HO2        + 0.719*ALD 
+                                        + 0.184*ACD   # 2.6E-12 @ -200.;
+<R112>  ETEG + HO          = HO2        + ALD         # 1.47E-11;
+<R113>  OP1  + HO          = 0.35*HO    + 0.65*MO2
+                                        + 0.35*HCHO   # 2.9E-12 @ -190.;
+<R114>  OP2  + HO          = 0.01*HO    + 0.44*HC3P
+                                        + 0.07*XO2 
+                                        + 0.08*ALD 
+                                        + 0.41*KET    # 3.40E-12 @ -190.0;
+<R115>  ISHPA + HO        = 0.578*IEPOXA + 0.272*IEPOXB
+					+ 0.850*HO
+					+ 0.150*HC5P  # 1.7D-11 @ -390.0;
+<R116>  MAHP + HO          = MACP                     # 3.0E-11;
+<R117>  ORA1 + HO          = HO2                      # 4.5E-13;
+<R118>  ORA2 + HO          = 0.64*MO2   + 0.36*ORAP   # 4.0E-14 @ -850.;
+<R119>  PAA  + HO          = 0.35*HO    + 0.65*ACO3 
+                                        + 0.35*XO2
+                                        + 0.35*HCHO   # 2.93E-12 @ -190.;
+<R120>  PAN  + HO          = XO2        + NO3
+                                        + HCHO        # 4.0E-14;
+<R121>  PPN  + HO          = XO2        + NO3
+                                        + HCHO        # 4.0E-14;
+<R122>  MPAN + HO          = NO2        + HKET        # 3.2E-11;
+<R123>  ONIT + HO          = HC3P       + NO2         # 5.31E-12 @ 260.;
+<R124>  IHPN               = IHNO       + HO          # 1.0/<OP1_RACM2>;
+<R125>  INO2 + NO3         = 0.54*ICN   + 0.42*MVK
+                                        + 0.04*MACR
+					+ 1.46*NO2
+					+ 0.54*HO2
+					+ 0.46*HCHO   #2.0E-12; 
+<R126>  ETE  + O3          = 0.08*HO    + 0.15*HO2
+                                        + 0.43*CO
+                                        + HCHO
+                                        + 0.37*ORA1   # 9.14E-15 @ 2580.;
+<R127> OLT + O3            = 0.22*HO    + 0.32*HO2 
+                                        + 0.08*MO2 
+                                        + 0.06*ETHP 
+                                        + 0.04*HC3P 
+                                        + 0.02*HC5P 
+                                        + 0.068*H2O2 
+                                        + 0.43*CO 
+                                        + 0.02*ETH 
+                                        + 0.015*HC3 
+                                        + 0.006*HC5 
+                                        + 0.032*BENZENE 
+                                        + 0.56*HCHO 
+                                        + 0.01*ACD 
+                                        + 0.44*ALD 
+                                        + 0.03*ACT 
+                                        + 0.02*BALD 
+                                        + 0.06*MEK 
+                                        + 0.01*HKET 
+                                        + 0.03*ORA1 
+                                        + 0.06*ORA2 # 4.33E-15 @ 1800.0;
+<R128>  OLI + O3           = 0.46*HO    + 0.07*HO2 
+                                        + 0.32*MO2 
+                                        + 0.07*ETHP 
+                                        + 0.04*HC3P 
+                                        + 0.09*ACO3 
+                                        + 0.37*CO 
+                                        + 0.026*H2O2 
+                                        + 0.01*ETH 
+                                        + 0.01*HC3 
+                                        + 0.09*HCHO 
+                                        + 0.457*ACD
+                                        + 0.73*ALD 
+                                        + 0.11*ACT 
+                                        + 0.017*KET 
+                                        + 0.044*HKET 
+                                        + 0.017*ORA2  # 4.40E-15 @ 845.0; 
+<R129> DIEN + O3           = 0.09*O3P   + 0.28*HO 
+                                        + 0.30*HO2
+                                        + 0.03*MO2 
+                                        + 0.15*ACO3 
+                                        + 0.02*KETP 
+                                        + 0.13*XO2 
+                                        + 0.001*H2O2 
+                                        + 0.36*CO 
+                                        + 0.35*OLT 
+                                        + 0.90*HCHO 
+                                        + 0.39*MACR 
+                                        + 0.15*ORA1   # 1.34E-14 @ 2283.0;
+<R130>  ISO  + O3          = 0.25*HO    + 0.25*HO2
+                                        + 0.08*MO2
+                                        + 0.1*ACO3
+                                        + 0.1*MACP
+                                        + 0.09*H2O2
+                                        + 0.14*CO
+                                        + 0.58*HCHO
+                                        + 0.461*MACR
+                                        + 0.189*MVK
+                                        + 0.28*ORA1
+                                        + 0.153*OLT   # 7.86E-15 @ 1913.;
+<R131>  API  + O3          = 0.85*HO    + 0.10*HO2
+                                        + 0.20*ETHP
+                                        + 0.42*KETP
+                                        + 0.02*H2O2
+                                        + 0.14*CO
+                                        + 0.65*ALD
+                                        + 0.53*KET
+                                        + 1.0*TRPRXN  # 5.0E-16 @ 530.;
+<R132>  LIM  + O3          = 0.85*HO    + 0.10*HO2 
+                                        + 0.16*ETHP
+                                        + 0.42*KETP
+                                        + 0.02*H2O2
+                                        + 0.14*CO
+                                        + 0.46*OLT
+                                        + 0.04*HCHO
+                                        + 0.79*MACR
+                                        + 0.01*ORA1
+                                        + 0.07*ORA2
+                                        + 1.0*TRPRXN  # 2.95E-15 @ 783.;
+<R133>  MACR + O3          = 0.902*MGLY + 0.242*HCHO
+                                        + 0.238*HO
+                                        + 0.652*CO
+                                        + 0.098*ACO3
+                                        + 0.204*ORA1
+                                        + 0.14*HO2
+                                        + 0.144*H2O2  # 1.4D-15 @ 2100.0;
+<R134> MVK   + O3          = 0.28*ACO3   + 0.56*CO
+                                        + 0.075*ORA1
+                                        + 0.09*H2O2
+                                        + 0.28*HO2
+                                        + 0.1*ACD
+                                        + 0.545*HCHO
+                                        + 0.36*HO
+                                        + 0.545*MGLY
+                                        + 0.075*PYAC  # 8.5D-16 @ 1520.0 ;
+<R135> UALD + O3           = 0.100*HO   + 0.072*HO2 
+                                        + 0.008*MO2 
+                                        + 0.002*ACO3 
+                                        + 0.10*XO2 
+                                        + 0.243*CO 
+                                        + 0.080*HCHO 
+                                        + 0.420*ACD 
+                                        + 0.028*KET 
+                                        + 0.491*GLY 
+                                        + 0.003*MGLY 
+                                        + 0.044*ORA1  # 1.66E-18;
+<R136> DCB1 + O3           = 0.05*HO    + HO2 
+                                        + 0.60*RCO3 
+                                        + 0.60*XO2 
+                                        + 1.50*CO 
+                                        + 0.05*HCHO 
+                                        + 0.05*GLY 
+                                        + 0.08*MGLY 
+                                        + 0.65*OP2    # 2.0E-16;
+<R137> DCB2 + O3           = 0.05*HO    + HO2 
+                                        + 0.60*RCO3 
+                                        + 0.60*XO2 
+                                        + 1.50*CO 
+                                        + 0.05*HCHO 
+                                        + 0.05*GLY 
+                                        + 0.08*MGLY 
+                                        + 0.70*DCB1 
+                                        + 0.65*OP2    # 2.0E-16;
+<R138> DCB3 + O3           = 0.05*HO    + HO2 
+                                        + 1.50*CO 
+                                        + 0.48*GLY 
+                                        + 0.70*DCB1 
+                                        + 0.25*ORA1 
+                                        + 0.25*ORA2 
+                                        + 0.11*PAA    # 9.0E-17;
+<R139>  EPX  + O3          = 0.05*HO    + 1.5*HO2
+                                        + 1.5*CO
+                                        + 0.85*BALD
+                                        + GLY         # 5.0E-16;
+<R140>  MCTO + O3          = MCTP                     # 2.86E-13;
+<R141>  ETE  + NO3         = 0.80*OLNN  + 0.20*OLND   # 4.392E-13^2.0@2282.0; 
+<R142>  OLT  + NO3         = 0.43*OLNN  + 0.57*OLND   # 1.79E-13 @ 450.;
+<R143>  OLI  + NO3         = 0.11*OLNN  + 0.89*OLND   # 8.64E-13 @ -450.;
+<R144>  DIEN + NO3         = 0.90*OLNN  + 0.10*OLND
+                                        + 0.90*MACR   # 1.0E-13;
+<R145>  ISO  + NO3         = INO2                     # 3.03E-12 @ 446.;
+<R146>  API  + NO3         = 0.10*TOLNN + 0.90*TOLND  # 4.0E-12 @ -490.;
+<R147>  LIM  + NO3         = 0.71*TOLNN + 0.29*TOLND  # 1.22E-11;
+<R148>  HCHO + NO3         = HO2        + CO 
+                                        + HNO3        # 2.0E-12 @ 2440.;
+<R149>  ACD  + NO3         = ACO3       + HNO3        # 1.4E-12 @ 1900.;
+<R150>  ALD  + NO3         = RCO3       + HNO3        # 3.76E-12 @ 1900.;
+<R151>  MACR + NO3         = MACP       + HNO3        # 3.4D-15 ; 
+<R152>  UALD + NO3         = MACP       + HNO3        # 5.02E-13 @ 1076.;
+<R153>  GLY  + NO3         = HO2        + 2.0*CO 
+                                        + HNO3        # 2.90E-12 @ 1900.;
+<R154>  MGLY + NO3         = ACO3       + CO 
+                                        + HNO3        # 3.76E-12 @ 1900.;
+<R155>  PHEN + NO3         = 0.4*CHO    + 0.1*ADDC
+                                        + 0.5*ADCN 
+                                        + 0.5*HNO3    # 3.78E-12;
+<R156>  CSL  + NO3         = 0.4*CHO    + 0.1*ADDC 
+                                        + 0.5*ADCN 
+                                        + 0.5*HNO3    # 1.06E-12;
+<R157>  EPX  + NO3         = 0.50*HO    + 1.50*HO2
+                                        + 1.50*CO
+                                        + GLY
+                                        + 0.50*NO2
+                                        + 0.50*HNO3   # 2.87E-13 @ 1000.;
+<R158>  MCT  + NO3         = MCTO       + HNO3        # 2.01E-10;
+<R159>  MPAN + NO3         = MACP       + NO2         # 2.2E-14 @ 500.;
+<R160>  TR2                = 0.28*HO    + 0.29*HO2
+                                        + 0.28*TOLP 
+                                        + 0.15*PER1
+                                        + 0.28*DCB2
+                                        + 0.01*CSL  
+                                        + 0.28*EPX    # 1.0E+03;
+<R161>  TOLP               = 0.49*HO    + 0.01*HO2
+                                        + 0.50*PER1
+                                        + 0.49*DCB2
+                                        + 0.01*CSL    # 1.0E+03;
+<R162> XY2                 = 0.158*HO   + 0.308*HO2 
+                                        + 0.250*RCO3
+                                        + 0.308*XYLP
+                                        + 0.150*PER2
+                                        + 0.224*DCB2
+                                        + 0.010*CSL
+                                        + 0.840*EPX   # 1.00E+03;
+<R163>  XYLP               = 0.390*HO   + 0.010*HO2
+                                        + 0.300*PER2 
+                                        + 0.490*DCB2
+                                        + 0.010*CSL   # 1.0E+03;
+<R164>  XYO2               = 0.158*HO   + 0.308*HO2
+                                        + 0.250*RCO3
+                                        + 0.150*PER2
+                                        + 0.308*XYOP
+                                        + 0.224*DCB2
+                                        + 0.010*CSL
+                                        + 0.840*EPX   # 1.0E+03;
+<R165>  XYOP               = 0.390*HO   + 0.010*HO2   
+                                        + 0.500*PER2
+                                        + 0.490*DCB2
+                                        + 0.010*CSL   # 1.0E+03;
+<R166>  ACO3 + NO2         = PAN                      # 9.7E-29 ^ -5.6 &
+                                                        9.3E-12 ^ -1.5;
+<R167>  PAN                = ACO3       + NO2         # 9.00E-29 @ -14000.0
+                                                        *E<R166>;
+<R168>  RCO3 + NO2         = PPN                      # 9.7E-29 ^ -5.6 &
+                                                        9.3E-12 ^ -1.5;
+<R169>  PPN                = RCO3       + NO2         # 9.00E-29 @ -14000.0
+                                                        *E<R168>; 
+<R170>  MACP + NO2         = MPAN                     # 2.80E-12 @ -181.; 
+<R171>  MPAN               = MACP       + NO2         # 1.60E+16 @ 13486.;                                    
+<R172>  MO2  + NO          = HO2        + NO2 
+                                        + HCHO        # 2.80E-12 @ -300.;
+<R173>  ETHP + NO          = HO2        + NO2
+                                        + ACD         # 2.6E-12 @ -365.;
+<R174>  HC3P + NO          = 0.660*HO2  + 0.131*MO2
+                                        + 0.048*ETHP
+                                        + 0.089*XO2
+                                        + 0.935*NO2  
+                                        + 0.504*ACD                                         
+                                        + 0.132*ALD 
+                                        + 0.165*ACT
+                                        + 0.042*MEK
+                                        + 0.002*MONIT
+                                        + 0.063*ONIT  # 4.0E-12;
+<R175>  HC5P + NO          = 0.200*HO2  + 0.051*MO2
+                                        + 0.231*ETHP
+                                        + 0.235*XO2
+                                        + 0.864*NO2
+                                        + 0.018*HCHO
+                                        + 0.045*ACD
+                                        + 0.203*ALD 
+                                        + 0.033*MEK
+                                        + 0.217*ACT 
+                                        + 0.033*KET
+                                        + 0.272*HKET
+                                        + 0.022*MONIT                                        
+                                        + 0.114*ONIT  # 4.0E-12;
+<R176>  HC8P + NO          = 0.606*HO2  + 0.133*ETHP 
+                                        + 0.416*XO2
+                                        + 0.739*NO2
+                                        + 0.150*ALD
+                                        + 0.642*KET 
+                                        + 0.197*ONIT  # 4.00E-12;
+<R177>  ETEP + NO          = HO2        + NO2 
+                                        + 1.6*HCHO 
+                                        + 0.2*ALD     # 9.0E-12;
+<R178> OLTP + NO           = 0.78*HO2   + 0.97*NO2 
+                                        + 0.78*HCHO 
+                                        + 0.012*ACD 
+                                        + 0.44*ALD 
+                                        + 0.06*ACT 
+                                        + 0.13*MEK 
+                                        + 0.03*MONIT  # 4.00E-12;
+<R179>  OLIP + NO          = 0.83*HO2   + 0.95*NO2 
+                                        + 0.81*ACD
+                                        + 0.68*ALD 
+                                        + 0.20*ACT 
+                                        + 0.09*KET 
+                                        + 0.02*HKET
+				        + 0.035*MONIT 
+                                        + 0.015*DONIT # 4.00E-12;
+<R180>  BENP + NO          = 0.918*HO2  + 0.918*NO2
+                                        + 0.459*DCB2
+                                        + 0.459*DCB3
+                                        + 0.918*GLY
+                                        + 0.082*AONIT # 2.54E-12 @ -360.;
+<R181>  TLP1 + NO          = NO2        + BALD        # 4.0E-12;
+<R182>  TOLP + NO          = 0.95*HO2   + 0.95*NO2
+                                        + 0.95*DCB2
+                                        + 0.05*AONIT  # 2.7E-12 @ -360.;                                
+<R183> PER1 + NO           = 0.50*HO2   + 0.95*NO2 
+                                        + 0.50*BALD 
+                                        + 0.50*MGLY 
+                                        + 0.50*DCB1 
+                                        + 0.05*AONIT  # 2.70E-12 @ -360.;
+<R184>  XYL1 + NO          = NO2        + BALD        # 4.0E-12;
+<R185>  XYLP + NO          = 0.95*HO2   + 0.95*NO2
+                                        + 0.95*DCB3
+                                        + 0.05*AONIT  # 2.7E-12 @ -360.;
+<R186>  PER2 + NO          = 0.95*HO2   + 0.95*NO2 
+                                        + 0.95*MGLY 
+                                        + 0.95*DCB1 
+                                        + 1.05*DCB3 
+                                        + 0.05*AONIT  # 2.70E-12 @ -360.;
+<R187>  XYOP + NO          = 0.95*HO2   + 0.95*NO2
+                                        + 0.350*GLY
+                                        + 0.600*MGLY
+                                        + 0.700*DCB1
+                                        + 0.073*DCB2
+                                        + 0.177*DCB3
+                                        + 0.05*ONIT   # 2.7E-12 @ -360.;
+<R188>  ISOP + NO          = 0.4*MVK    + 0.26*MACR
+                                        + 0.883*NO2
+                                        + 0.0117*ISOPND
+                                        + 0.1053*ISOPNB
+                                        + 0.66*HCHO
+                                        + 0.143*UHC
+                                        + 0.08*DIBOO
+                                        + 0.803*HO2   # 2.43E-12 @ -360.;
+<R189>  APIP + NO          = 0.82*HO2   + 0.82*NO2 
+                                        + 0.23*HCHO
+                                        + 0.43*ALD 
+                                        + 0.11*ACT
+                                        + 0.44*KET
+                                        + 0.07*ORA1 
+                                        + 0.12*TONIT
+                                        + 0.06*UTONIT # 4.0E-12;
+<R190>  LIMP + NO         = 0.22*UTONIT + 0.686*HO2
+                                        + 0.491*UALD
+                                        + 0.231*HCHO
+                                        + 0.058*HAC
+                                        + 0.78*NO2
+                                        + 0.289*OLI
+                                        + 0.289*KET    # 4.0E-12;
+<R191>  ACO3 + NO          = MO2        + NO2         # 8.1E-12 @ -270.;
+<R192>  RCO3 + NO          = ETHP       + NO2         # 8.1E-12 @ -270.;
+<R193>  ACTP + NO          = ACO3       + NO2
+                                        + HCHO        # 2.9E-12 @ -300.;
+<R194>  MEKP + NO          = 0.67*HO2   + NO2 
+                                        + 0.33*HCHO 
+                                        + 0.67*DCB1   # 4.0E-12;
+<R195>  KETP + NO          = 0.77*HO2   + 0.23*ACO3
+                                        + 0.16*XO2
+                                        + NO2
+                                        + 0.46*ALD
+                                        + 0.54*MGLY   # 4.0E-12;
+<R196>  MACP + NO          = NO2        + CO
+                                        + HCHO
+                                        + MO2         # 7.5D-12 @ -290.0;
+<R197>  MACRO2 + NO        = 0.85*NO2   + 0.85*HO2
+                                        + 0.425*HAC
+                                        + 0.425*CO
+                                        + 0.425*HCHO
+                                        + 0.425*MGLY
+                                        + 0.15*MACRN  # 2.7D-12 @ -360.0;
+<R198> MVKP  + NO          =0.716*GLYC + 0.716*ACO3
+                                        + 0.249*MGLY
+                                        + 0.249*HCHO
+                                        + 0.249*HO2
+                                        + 0.035*MVKN
+                                        + 0.965*NO2    # 2.7D-12 @ -350.0 ;
+<R199>  UALP + NO          = HO2        + NO2
+                                        + 0.61*CO
+                                        + 0.03*HCHO
+                                        + 0.27*ALD
+                                        + 0.18*GLY
+                                        + 0.7*KET
+                                        + 0.21*MGLY   # 2.54E-12 @ -360.;
+<R200>  BALP + NO          = BAL1       + NO2         # 4.0E-12;
+<R201>  BAL1 + NO          = BAL2       + NO2         # 4.0E-12;
+<R202>  ADDC + NO          = HO2        + NO2
+                                        + 0.32*HKET                                                                        
+                                        + 0.68*GLY
+                                        + 0.68*OP2    # 2.7E-12 @ -360.;
+<R203>  MCTP + NO          = MCTO       + NO2         # 2.7E-12 @ -360.;
+<R204>  ORAP + NO          = NO2        + GLY
+                                        + HO2         # 4.0E-12;
+<R205>  OLNN + NO          = NO2        + HO2
+                                        + MONIT       # 4.0E-12;
+<R206>  OLND + NO          = 2.00*NO2   + 0.287*HCHO
+                                        + 1.24*ALD 
+                                        + 0.464*KET   # 4.0E-12;
+<R207>  ADCN + NO          = 2.0*NO2    + GLY 
+                                        + OP2         # 2.7E-12 @ -360.;
+<R208>  XO2  + NO          = NO2                      # 4.0E-12;
+<R209>  BAL2 + NO2         = AONIT                    # 2.0E-11;
+<R210>  CHO  + NO2         = AONIT                    # 2.0E-11;
+<R211>  MCTO + NO2         = AONIT                    # 2.08E-12;
+<R212>  MO2  + HO2         = OP1                      # 4.1E-13 @ -750.;
+<R213>  ETHP + HO2         = OP2                      # 7.5E-13 @ -700.;
+<R214>  HC3P + HO2         = OP2                      # 1.66E-13 @ -1300.;
+<R215>  HC5P + HO2         = OP2                      # 1.66E-13 @ -1300.;
+<R216>  HC8P + HO2         = OP2                      # 1.66E-13 @ -1300.;
+<R217>  ETEP + HO2         = OP2                      # 1.90E-13 @ -1300.;  
+<R218>  OLTP + HO2         = OP2                      # 1.66E-13 @ -1300.;
+<R219>  OLIP + HO2         = OP2                      # 1.66E-13 @ -1300.;
+<R220>  BENP + HO2         = OP2                      # 2.91E-13 @ -1300.;
+<R221>  TLP1 + HO2         = OP2                      # 3.75E-13 @ -980.;
+<R222>  TOLP + HO2         = OP2                      # 3.75E-13 @ -980.;
+<R223>  PER1 + HO2         = OP2                      # 3.75E-13 @ -980.;
+<R224>  XYL1 + HO2         = OP2                      # 3.75E-13 @ -980.;
+<R225>  XYLP + HO2         = OP2                      # 3.75E-13 @ -980.;
+<R226>  PER2 + HO2         = OP2                      # 3.75E-13 @ -980.;
+<R227>  XYOP + HO2         = OP2                      # 3.75E-13 @ -980.;
+<R228>  ISOP + HO2         = 0.628*ISHPA + 0.272*ISHPB
+                                        + 0.037*ISHPD
+                                        + 0.063*HO
+                                        + 0.063*HO2
+                                        + 0.063*HCHO
+                                        + 0.025*MACR
+                                        + 0.038*MVK   
+					+ ISOPRXN  # 2.06D-13 @ -1300.0; 
+<R229>  APIP + HO2         = OP2        +TRPRXN       # 1.5E-11;
+<R230>  LIMP + HO2         = OP2        +TRPRXN       # 1.5E-11;
+<R231>  ACO3 + HO2         = 0.44*HO    + 0.44*MO2
+                                        + 0.15*ORA2
+                                        + 0.41*PAA    # 4.3E-13 @ -1040.;
+<R232>  RCO3 + HO2         = 0.44*HO    + 0.44*ETHP
+                                        + 0.15*ORA2
+                                        + 0.41*PAA    # 4.3E-13 @ -1040.;
+<R233>  ACTP + HO2         = 0.150*HO   + 0.150*ACO3 
+                                        + 0.150*HCHO
+                                        + 0.850*OP2   # 1.15E-13 @ -1300.;
+<R234>  MEKP + HO2         = OP2                      # 1.15E-13 @ -1300.;
+<R235>  KETP + HO2         = OP2                      # 1.15E-13 @ -1300.;
+<R236>  MACP + HO2         = 0.4*MAHP   + 0.2*O3
+                                        + 0.2*ORA2 
+                                        + 0.4*HO
+                                        + 0.26*MO2
+                                        + 0.4*HCHO
+                                        + 0.14*ACO3
+                                        + 0.26*CO     # 5.2D-13 @ -980.0;
+<R237>  MACRO2 + HO2       = OP2                      # 1.8D-13 @ -1300.0 ;
+<R238>  MVKP + HO2         = 0.38*VRP   + 0.37*GLYC
+                                        + 0.37*ACO3
+                                        + 0.62*HO
+                                        + 0.13*KET
+                                        + 0.25*HO2
+                                        + 0.12*MGLY
+                                        + 0.12*HCHO   # 1.82D-13 @ -1300.0 ;
+<R239>  UALP + HO2         = OP2                      # 2.91E-13 @ -1300.;
+<R240>  ADDC + HO2         = OP2                      # 3.75E-13 @ -980.;
+<R241>  CHO  + HO2         = CSL                      # 1.00E-11;
+<R242>  MCTP + HO2         = OP2                      # 3.75E-13 @ -980.;
+<R243>  ORAP + HO2         = OP2                      # 1.15E-13 @ -1300.;
+<R244>  OLNN + HO2         = MONIT                    # 1.66E-13 @ -1300.; 
+<R245>  OLND + HO2         = MONIT                    # 1.66E-13 @ -1300.;
+<R246>  ADCN + HO2         = AONIT                    # 3.75E-13 @ -980.;
+<R247>  XO2  + HO2         = OP2                      # 1.66E-13 @ -1300.;
+<R248>  MO2  + MO2         = 0.74*HO2  + 1.37*HCHO
+                                       + 0.63*MOH     # 9.5E-14 @ -390.;
+<R249>  ETHP + MO2         = HO2       + 0.75*HCHO 
+                                       + 0.75*ACD
+                                       + 0.250*MOH
+                                       + 0.250*EOH    # 1.18E-13 @ -158.;
+<R250>  HC3P + MO2         = 0.894*HO2 + 0.080*MO2
+                                       + 0.026*ETHP
+                                       + 0.026*XO2
+                                       + 0.827*HCHO
+                                       + 0.198*ALD
+                                       + 0.497*KET
+                                       + 0.050*GLY
+                                       + 0.250*MOH
+                                       + 0.250*ROH    # 9.46E-14 @ -431.;
+<R251>  HC5P + MO2         = 0.842*HO2 + 0.018*MO2
+                                       + 0.140*ETHP
+                                       + 0.191*XO2
+                                       + 0.777*HCHO
+                                       + 0.251*ALD
+                                       + 0.618*KET
+                                       + 0.250*MOH
+                                       + 0.250*ROH    # 1.0E-13 @ -467.;
+<R252>  HC8P + MO2         = 0.910*HO2 + 0.090*ETHP 
+                                       + 0.281*XO2
+                                       + 0.750*HCHO 
+                                       + 0.197*ALD
+                                       + 0.652*KET
+                                       + 0.250*MOH
+                                       + 0.250*ROH    # 4.34E-14 @ -633.;
+<R253>  ETEP + MO2         = HO2       + 1.95*HCHO 
+                                       + 0.15*ALD
+                                       + 0.250*MOH
+                                       + 0.250*ETEG   # 1.71E-13 @ -708.;
+<R254>  OLTP + MO2         = HO2       + 1.50*HCHO
+                                       + 0.705*ALD
+                                       + 0.045*KET
+                                       + 0.250*MOH
+                                       + 0.250*ROH    # 1.46E-13 @ -708.;
+<R255>  OLIP + MO2         = HO2       + 0.750*HCHO 
+                                       + 1.28*ALD
+                                       + 0.218*KET
+                                       + 0.250*MOH
+                                       + 0.250*ROH    # 9.18E-14 @ -708.;
+<R256>  BENP + MO2         = 1.60*HO2  + 0.459*DCB3 
+                                       + HCHO 
+                                       + 0.459*DCB2 
+                                       + 0.600*GLY    # 3.56E-14 @ -708.;
+<R257>  TLP1 + MO2         = HO2       + HCHO
+                                       + BALD         # 3.56E-14 @ -708.;                                    
+<R258>  TOLP + MO2         = 2.0*HO2   + HCHO 
+                                       + 0.271*GLY
+                                       + DCB2         # 3.56E-14 @ -708.;
+<R259>  PER1 + MO2         = 2.0*HO2   + HCHO 
+                                       + MGLY
+                                       + DCB1         # 3.56E-14 @ -708.;
+<R260>  XYL1 + MO2         = HO2       + HCHO
+                                       + BALD         # 3.56E-14 @ -708.;
+<R261>  XYLP + MO2         = 2.0*HO2   + HCHO 
+                                       + DCB2         # 3.56E-14 @ -708.;
+<R262>  PER2 + MO2         = 2.0*HO2   + HCHO
+                                       + MGLY
+                                       + DCB1
+                                       + 1.05*DCB3    # 3.56E-14 @ -708.;
+<R263>  XYOP + MO2         = 2.0*HO2   + HCHO
+                                       + 0.368*GLY
+                                       + 0.632*MGLY
+                                       + 0.737*DCB1
+                                       + 0.077*DCB2
+                                       + 0.186*DCB3   # 3.56E-14 @ -708.;
+<R264> ISOP + MO2          = 1.54*HCHO + HO2
+                                       + 0.305*MVK
+                                       + 0.219*MACR
+                                       + 0.250*MOH
+                                       + 0.250*ROH    
+				       +ISOPRXN        # 3.40D-14 @ -221.0 ;
+
+<R265>  APIP + MO2         = HO2       + 0.750*HCHO 
+                                       + 0.750*ALD 
+                                       + 0.750*KET
+                                       + 0.250*MOH
+                                       + 0.250*ROH    
+				       +TRPRXN        # 3.56E-14 @ -708.;
+<R266>  LIMP + MO2         = HO2       + 1.04*HCHO 
+                                       + 0.192*OLI
+                                       + 0.308*MACR 
+                                       + 0.250*MOH
+                                       + 0.250*ROH    
+                                       + TRPRXN   # 3.56E-14 @ -708.;
+<R267>  ACO3 + MO2         = 0.9*HO2   + 0.9*MO2
+                                       + HCHO 
+                                       + 0.1*ORA2     # 2.0E-11 @ -500.;
+<R268>  RCO3 + MO2         = 0.9*HO2   + 0.9*MO2
+                                       + HCHO 
+                                       + 0.1*ORA2     # 2.0E-11 @ -500.;
+<R269>  ACTP + MO2         = 0.50*HO2  + 0.50*ACO3
+                                       + 1.50*HCHO
+                                       + 0.25*MOH
+                                       + 0.25*ROH 
+                                       + 0.125*ORA2   # 7.5E-13 @ -500.;
+<R270>  MEKP + MO2         = 0.834*HO2 + HCHO 
+                                       + 0.334*DCB1 
+                                       + 0.25*MOH
+                                       + 0.25*ROH     # 6.91E-13 @ -508.;
+<R271>  KETP + MO2         = HO2       + 0.75*HCHO 
+                                       + 0.50*DCB1 
+                                       + 0.25*MOH
+                                       + 0.25*ROH     # 6.91E-13 @ -508.;                           
+<R272> MACP  + MO2         = 0.9*HO2   + 0.585*MO2
+                                       + 0.585*CO 
+                                       + 0.315*ACO3
+                                       + 0.1*ORA2
+                                       + 1.9*HCHO     # 2.0D-12 @ -500.0 ;
+<R273> MACRO2 + MO2       = 0.328*HKET + 1.037*HCHO
+                                       + 1.344*HO2
+                                       + 0.599*HAC
+                                       + 0.599*CO
+                                       + 0.036*MOH
+                                       + 0.073*MGLY   # 2.04D-13 ;
+<R274>  MVKP + MO2         =0.25*ROH   + 0.9*HCHO
+                                       + 0.25*HKET
+                                       + 0.25*MOH
+                                       + 0.15*MGLY
+                                       + 0.35*GLYC
+                                       + 0.35*ACO3
+                                       + 0.65*HO2     # 1.38D-12 ;
+<R275>  UALP + MO2         = HO2       + 0.305*CO 
+                                       + 0.773*HCHO 
+                                       + 0.203*ALD
+                                       + 0.525*KET
+                                       + 0.135*GLY
+                                       + 0.105*MGLY
+                                       + 0.250*MOH
+                                       + 0.250*ROH    # 3.4E-14 @ -221.;
+<R276>  BALP + MO2         = HO2       + BAL1 
+                                       + HCHO         # 3.56E-14 @ -708.;
+<R277>  BAL1 + MO2         = HO2       + BAL2 
+                                       + HCHO         # 3.56E-14 @ -708.;
+<R278>  ADDC + MO2         = 2.0*HO2   + HCHO 
+                                       + 0.32*HKET
+                                       + 0.68*GLY
+                                       + 0.68*OP2     # 3.56E-14 @ -708.;
+<R279>  MCTP + MO2         = HO2       + MCTO 
+                                       + HCHO         # 3.56E-14 @ -708.;
+<R280>  ORAP + MO2         = HCHO      + HO2
+                                       + GLY          # 7.50E-13 @ -500.;
+<R281>  OLNN + MO2         = 2.00*HO2  + HCHO
+                                       + MONIT        # 1.6E-13 @ -708.;
+<R282>  OLND + MO2         = 0.500*HO2 + 0.500*NO2 
+                                       + 0.965*HCHO 
+                                       + 0.930*ALD
+                                       + 0.348*KET
+                                       + 0.250*MOH
+                                       + 0.250*ROH
+                                       + 0.500*MONIT  # 9.68E-14 @ -708.;
+<R283>  ADCN + MO2         = HO2       + 0.7*NO2
+                                       + HCHO 
+                                       + 0.7*GLY
+                                       + 0.7*OP2
+                                       + 0.3*AONIT    # 3.56E-14;
+<R284>  XO2  + MO2         = HO2       + HCHO         # 5.99E-15 @ -1510.;
+<R285>  ETHP + ACO3        = 0.500*HO2 + 0.5*MO2 
+                                       + ACD 
+                                       + 0.5*ORA2     # 1.03E-12 @ -211.;
+<R286>  HC3P + ACO3        = 0.394*HO2 + 0.580*MO2
+                                       + 0.026*ETHP
+                                       + 0.026*XO2
+                                       + 0.130*HCHO
+                                       + 0.273*ALD 
+                                       + 0.662*KET
+                                       + 0.067*GLY
+                                       + 0.500*ORA2   # 6.9E-13 @ -460.;
+<R287>  HC5P + ACO3        = 0.342*HO2 + 0.518*MO2
+                                       + 0.140*ETHP
+                                       + 0.191*XO2 
+                                       + 0.042*HCHO
+                                       + 0.381*ALD 
+                                       + 0.824*KET
+                                       + 0.500*ORA2   # 5.59E-13 @ -522.;
+<R288>  HC8P + ACO3        = 0.303*HO2 + 0.500*MO2 
+                                       + 0.067*ETHP
+                                       + 0.208*XO2
+                                       + 0.217*ALD 
+                                       + 0.642*KET 
+                                       + 0.495*ORA2   # 2.47E-13 @ -683.;
+<R289>  ETEP + ACO3        = 0.5*HO2   + 0.5*MO2 
+                                       + 1.6*HCHO 
+                                       + 0.2*ALD 
+                                       + 0.5*ORA2     # 9.48E-13 @ -765.;                                    
+<R290>  OLTP + ACO3        = 0.500*HO2 + 0.500*MO2 
+                                       + HCHO 
+                                       + 0.940*ALD 
+                                       + 0.060*KET
+                                       + 0.500*ORA2   # 8.11E-13 @ -765.;
+<R291>  OLIP + ACO3        = 0.500*HO2 + 0.500*MO2 
+                                       + 1.71*ALD 
+                                       + 0.290*KET
+                                       + 0.500*ORA2   # 5.09E-13 @ -765.;
+<R292>  BENP + ACO3        = 0.60*HO2  + MO2
+                                       + 0.459*DCB2 
+                                       + 0.458*DCB3
+                                       + 0.600*GLY    # 7.4E-13 @ -765.;
+<R293>  TLP1 + ACO3        = MO2       + BALD         # 7.4E-13 @ -765.;
+<R294>  TOLP + ACO3        = HO2       + MO2
+                                       + DCB2         # 7.4E-13 @ -765.;
+<R295>  PER1 + ACO3        = HO2       + MO2
+                                       + MGLY
+                                       + DCB1         # 7.4E-13 @ -765.;
+<R296>  XYL1 + ACO3        = MO2       + BALD         # 7.4E-13 @ -765.;
+<R297>  XYLP + ACO3        = HO2       + MO2
+                                       + DCB2         # 7.4E-13 @ -765.;
+<R298>  PER2 + ACO3        = HO2       + MO2
+                                       + MGLY
+                                       + DCB1 
+                                       + 1.05*DCB3    # 7.4E-13 @ -765.;
+<R299>  XYOP + ACO3        = HO2       + MO2
+                                       + 0.368*GLY
+                                       + 0.632*MGLY
+                                       + 0.737*DCB1
+                                       + 0.077*DCB2
+                                       + 0.186*DCB3   # 7.4E-13 @ -765.;
+<R300>  ISOP + ACO3        = 0.5*HO2   + 0.5*MO2
+                                       + 1.048*HCHO
+                                       + 0.219*MACR
+                                       + 0.305*MVK 
+                                       + 0.5*ORA2     
+				       +ISOPRXN        # 8.4E-14 @ -221.;
+<R301>  APIP + ACO3        = 0.5*HO2   + 0.5*MO2 
+                                       + ALD 
+                                       + KET
+                                       + ORA2         
+				       +TRPRXN        # 7.4E-13 @ -765.;
+<R302>  LIMP + ACO3        = 0.5*HO2   + 0.5*MO2 
+                                       + 0.192*OLI
+                                       + 0.385*HCHO
+                                       + 0.308*MACR 
+                                       + 0.5*ORA2     
+				       + TRPRXN       # 7.4E-13 @ -765.;
+<R303>  ACO3 + ACO3        = 2.0*MO2                  # 2.5E-12 @ -500.;
+<R304>  RCO3 + ACO3        = MO2       + ETHP         # 2.5E-12 @ -500.;
+<R305>  ACTP + ACO3        = 0.50*MO2  + 0.50*ACO3 
+                                       + HCHO  
+                                       + 0.75*ORA2    # 7.51E-13 @ -565.;
+<R306>  MEKP + ACO3        = 0.33*HO2  + 0.50*MO2 
+                                       + 0.33*HCHO 
+                                       + 0.334*DCB1
+                                       + 0.50*ORA2    # 7.51E-13 @ -565.;
+<R307>  KETP + ACO3        = 0.50*HO2  + 0.50*MO2 
+                                       + 0.50*DCB1                                         
+                                       + 0.50*ORA2    # 7.51E-13 @ -565.;
+<R308>  MACP + ACO3        = 1.65*MO2  + 0.35*ACO3
+                                       + HCHO
+                                       + 0.65*CO      # 2.9D-12 @ -500.0 ;
+<R309>  MACRO2 + ACO3      = 0.855*HAC + 0.855*CO
+                                       + 0.131*MGLY
+                                       + 0.131*HCHO
+                                       + 0.014*HKET
+                                       + 0.014*ORA2
+                                       + 0.986*MO2
+                                       + 0.986*HO2    # 2.58D-13 @ -500.0;
+<R310>  MVKP + ACO3        = 0.1*HKET  + 0.1*ORA2
+                                       + 0.27*MGLY
+                                       + 0.27*HO2
+                                       + 0.27*HCHO
+                                       + 0.63*GLYC  
+                                       + 0.63*ACO3
+                                       + 0.9*MO2      # 1.7D-12 @ -500.0 ;
+<R311>  UALP + ACO3        = 0.5*HO2   + 0.5*MO2
+                                       + 0.5*CO
+                                       + 0.030*HCHO
+                                       + 0.27*ALD
+                                       + 0.7*KET
+                                       + 0.18*GLY
+                                       + 0.105*MGLY
+                                       + 0.5*ORA2     # 1.68E-12 @ -500.;
+<R312>  BALP + ACO3        = MO2       + BAL1         # 7.4E-13 @ -765.;
+<R313>  BAL1 + ACO3        = MO2       + BAL2         # 7.4E-13 @ -765.;
+<R314>  ADDC + ACO3        = 2.00*HO2  + MO2
+                                       + 0.32*HKET
+                                       + 0.68*GLY
+                                       + 0.68*OP2     # 7.4E-13  @ -708.;
+<R315>  MCTP + ACO3        = HO2       + MO2 
+                                       + MCTO         # 7.4E-13  @ -708.;
+<R316>  ORAP + ACO3        = MO2       + GLY          # 7.51E-13 @ -565.;
+<R317>  OLNN + ACO3        = HO2       + MO2 
+                                       + MONIT        # 8.85E-13 @ -765.;
+<R318>  OLND + ACO3        = 0.500*MO2 + NO2 
+                                       + 0.287*HCHO 
+                                       + 1.24*ALD 
+                                       + 0.464*KET
+                                       + 0.500*ORA2   # 5.37E-13 @ -765.;
+<R319>  ADCN + ACO3        = HO2       + MO2
+                                       + 0.7*NO2
+                                       + 0.7*GLY
+                                       + 0.7*OP2
+                                       + 0.3*AONIT    # 7.4E-13 @ -708.;
+<R320>  XO2  + ACO3        = MO2                      # 3.4E-14 @ -1560.;
+<R321>  RCO3 + RCO3        = 2.0*ETHP                 # 2.50E-12 @ -500.0;
+<R322>  MO2  + NO3         = HO2       + HCHO
+                                       + NO2          # 1.20E-12;
+<R323>  ETHP + NO3         = HO2       + NO2 
+                                       + ACD          # 1.2E-12;
+<R324>  HC3P + NO3         = 0.254*HO2 + 0.140*MO2 
+                                       + 0.092*XO2 
+                                       + 0.503*ETHP 
+                                       + NO2 
+                                       + 0.519*ACD 
+                                       + 0.147*ALD 
+                                       + 0.075*MEK 
+                                       + 0.095*ACT    # 1.20E-12;
+<R325>  HC5P + NO3         = 0.488*HO2 + 0.055*MO2 
+                                       + 0.280*ETHP 
+                                       + 0.485*XO2 
+                                       + NO2 
+                                       + 0.024*HCHO 
+                                       + 0.241*ALD 
+                                       + 0.060*KET 
+                                       + 0.063*MEK 
+                                       + 0.247*ACT 
+                                       + 0.048*ACD 
+                                       + 0.275*HKET   # 1.20E-12;
+<R326>  HC8P + NO3         = 0.820*HO2 + 0.180*ETHP 
+                                       + 0.563*XO2 
+                                       + NO2
+                                       + 0.203*ALD 
+                                       + 0.869*KET    # 1.2E-12;
+<R327>  ETEP + NO3         = HO2       + NO2
+                                       + 1.6*HCHO 
+                                       + 0.2*ALD      # 1.2E-12;                                                                         
+<R328>  OLTP + NO3         = 0.47*ALD  + 0.79*HCHO 
+                                       + 0.79*HO2 
+                                       + NO2 
+                                       + 0.18*MEK 
+                                       + 0.02*ACD 
+                                       + 0.09*ACT     # 1.20E-12;                                     
+<R329>  OLIP + NO3         = 0.86*HO2  + 0.72*ALD 
+                                       + 0.11*KET 
+                                       + NO2 
+                                       + 0.20*ACT 
+                                       + 0.85*ACD 
+                                       + 0.04*HKET    # 1.20E-12;
+<R330> BENP  + NO3         = HO2       + NO2
+                                       + 0.50*DCB2
+                                       + 0.50*DCB3
+                                       + GLY          # 1.20E-12;
+<R331>  TLP1 + NO3         = NO2       + BALD         # 1.2E-12;
+<R332>  TOLP + NO3         = HO2       + NO2
+                                       + DCB2         # 1.2E-12;                                      
+<R333>  PER1 + NO3         = 0.50*HO2  + NO2
+                                       + 0.50*MGLY
+                                       + 0.50*DCB1
+                                       + 0.50*BALD    # 1.2E-12;                                       
+<R334>  XYL1 + NO3         = NO2       + BALD         # 1.2E-12;
+<R335>  XYLP + NO3         = HO2       + NO2
+                                       + DCB3         # 1.2E-12;
+<R336>  PER2 + NO3         = HO2       + NO2
+                                       + MGLY
+                                       + DCB1
+                                       + 1.05*DCB3    # 1.2E-12;
+<R337>  XYOP + NO3         = HO2       + NO2
+                                       + 0.368*GLY
+                                       + 0.632*MGLY
+                                       + 0.737*DCB1
+                                       + 0.077*DCB2
+                                       + 0.186*DCB3   # 1.2E-12;
+<R338>  ISOP + NO3        = 0.438*MACR + 0.610*MVK
+                                       + HO2 
+                                       + NO2
+                                       + 1.05*HCHO   
+				       + ISOPRXN      # 1.2E-12;
+<R339>  APIP + NO3         = HO2       + NO2
+                                       + ALD 
+                                       + KET          
+                                       +TRPRXN       # 1.2E-12;
+<R340>  LIMP + NO3         = HO2       + NO2
+                                       + 0.385*OLI
+                                       + 0.385*HCHO
+                                       + 0.615*MACR   
+				       + TRPRXN       # 1.2E-12;
+<R341>  ACO3 + NO3         = MO2       + NO2          # 4.0E-12;
+<R342>  RCO3 + NO3         = ETHP      + NO2          # 4.0E-12;
+<R343>  ACTP + NO3         = ACO3      + NO2
+                                       + HCHO         # 1.2E-12;
+<R344>  MEKP + NO3         = 0.67*HO2  + NO2
+                                       + 0.33*HCHO
+                                       + 0.67*DCB1    # 1.2E-12;
+<R345>  KETP + NO3         = HO2       + NO2 
+                                       + DCB1         # 1.2E-12;
+<R346>  MACP + NO3         = NO2       + HCHO
+                                       + 0.65*MO2
+                                       + 0.65*CO
+                                       + 0.35*ACO3    # 4.0D-12 ;
+<R347>  MACRO2 + NO3       = 0.855*HAC + 0.855*CO
+                                       + 0.855*HO2
+                                       + 0.145*HO2
+                                       + 0.145*MGLY
+                                       + 0.145*HCHO
+                                       + NO2         # 2.3D-12;
+<R348>  MVKP + NO3         = NO2       + 0.3*MGLY
+                                       + 0.3*HO2
+                                       + 0.3*HCHO
+                                       + 0.7*GLYC
+                                       + 0.7*ACO3    # 2.3D-12 ; 
+<R349>  UALP + NO3         = HO2       + NO2
+                                       + 0.61*CO
+                                       + 0.03*HCHO
+                                       + 0.27*ALD
+                                       + 0.7*KET
+                                       + 0.18*GLY
+                                       + 0.21*MGLY    # 2.5E-12;
+<R350>  BALP + NO3         = BAL1      + NO2          # 2.5E-12;
+<R351>  BAL1 + NO3         = BAL2      + NO2          # 2.5E-12;
+<R352>  ADDC + NO3         = HO2       + NO2
+                                       + 0.32*HKET                                     
+                                       + 0.68*GLY
+                                       + 0.68*OP2     # 1.2E-12;
+<R353>  MCTP + NO3         = NO2       + MCTO         # 1.2E-12;
+<R354>  ORAP + NO3         = NO2       + GLY
+                                       + HO2          # 1.2E-12;
+<R355>  OLNN + NO3         = HO2       + NO2 
+                                       + MONIT        # 1.2E-12;
+<R356>  OLND + NO3         = 2.00*NO2  + 0.287*HCHO
+                                       + 1.24*ALD  
+                                       + 0.464*KET    # 1.2E-12;
+<R357>  ADCN + NO3         = 2.0*NO2   + GLY
+                                       + OP2          # 1.2E-12;
+<R358>  OLNN + OLNN        = HO2       + 2.00*MONIT   # 7.0E-14 @ -1000.;
+<R359>  OLNN + OLND        = 0.500*HO2 + 0.500*NO2 
+                                       + 0.202*HCHO 
+                                       + 0.640*ALD 
+                                       + 0.149*KET
+                                       + 1.50*MONIT   # 4.25E-14 @ -1000.;
+<R360>  OLND + OLND        = NO2       + 0.504*HCHO
+                                       + 1.21*ALD
+                                       + 0.285*KET
+                                       + MONIT        # 2.96E-14 @ -1000.;                      
+<R361>  XO2  + NO3         = NO2                      # 1.2E-12;
+<R362>  XO2  + RCO3        = ETHP                     # 2.5E-12 @ -500.;
+<R363>  XO2  + XO2         =                          # 7.13E-17 @ -2950.;
+<R364>  ISHPA + HO         = 0.75*ISOP + 0.25*HC5 
+				       + 0.125*HO 
+                                       + 0.125*H2O    # 6.13D-12 @ -200.0;
+<R365>	ISHPB + HO         = 0.480*ISOP + 0.520*HC5
+                                       + 0.26*HO
+                                       + 0.26*H2O     # 4.14D-12 @ -200.0 ;		  
+<R366>  ISHPD + HO         = 0.250*ISOP + 0.750*HC5
+				       + 0.375*HO
+				       + 0.375*H2O    #5.11D-12 @ -200.0; 
+<R367>  ISHPB + HO         = 0.68*IEPOXA + 0.32*IEPOXB
+                                        + HO          # 2.97D-11 @ -390.0;
+<R368>  ISHPD + HO         = 0.50*IEPOXD + 0.50*HC5P
+                                        + 0.50*HO     # 2.92D-11 @ -390.0;
+<R369>  MACRO2             = HAC        + CO
+                                        + HO          # 2.9D+7 @ 5297.0;
+<R370>  MONIT + HO         = HKET       + NO2         # 1.79D-12 ;
+<R371>  AONIT + HO         = DCB2       + NO2         # 7.3D-11 ;
+<R372>  DONIT + HO         = UALD       + NO2         # 4.1D-11 ;
+<R373>  TOLNN + NO         = TONIN      + NO2 
+                                        + HO2         # 4.00D-12 ;
+<R374>  TOLND + NO         = 0.287*HCHO + 1.24*ALD
+                                        + 0.464*KET
+                                        + 2.0*NO2     # 4.00D-12 ;
+<R375>  TOLNN + HO2        = TONIH                    # 1.66D-13 @ -1300.0 ;
+<R376>  TOLND + HO2        = TONIH                    # 1.66D-13 @ -1300.0 ;
+<R377>  TOLNN + MO2        = HCHO       + 2.0*HO2 
+                                        + 0.7*TONIN 
+                                        + 0.3*UTONIN  # 1.60D-13 @ -708.0 ;
+<R378>  TOLND + MO2        = 0.965*HCHO + 0.500*HO2
+                                        + 0.930*ALD
+                                        + 0.348*KET
+                                        + 0.500*NO2
+                                        + 0.250*MOH
+                                        + 0.25*ROH
+                                        + 0.350*TONIN
+                                        + 0.15*UTONIN # 9.68D-14 @ -708.0 ;
+<R379> TOLNN + ACO3        = 0.7*TONIN  + 0.3*UTONIN
+                                        + MO2 
+                                        + HO2         # 8.85D-13 @ -765.0 ;
+<R380> TOLND + ACO3        = 0.287*HCHO + 1.24*ALD
+                                        + 0.464*KET
+                                        + 0.500*MO2
+                                        + 0.500*ORA2
+                                        + NO2         # 5.37D-13 @ -765.0 ;
+<R381> TOLNN + NO3         = 0.7*TONIN  + 0.3*UTONIN
+                                        + NO2
+                                        + HO2         # 1.20D-12 ;
+<R382> TOLND + NO3         = 0.287*HCHO + 1.24*ALD
+                                        + 0.464*KET
+                                        + 2.00*NO2    # 1.20D-12 ;
+<R383> TOLNN + TOLNN       = 1.4*TONIN  + 0.6*UTONIN
+                                        + HO2         # 7.00D-14 @ -1000.0 ;
+<R384> TOLNN + TOLND       = 0.202*HCHO + 0.640*ALD
+                                        + 0.149*KET
+                                        + 0.500*HO2
+                                        + 0.500*NO2
+                                        + 1.05*TONIN
+                                        + 0.45*UTONIN # 4.25D-14 @ -1000.0 ;
+<R385> TOLND + TOLND       = 0.504*HCHO + 1.21*ALD
+                                        + 0.285*KET
+                                        + 0.7*TONIN
+                                        + 0.3*UTONIN
+                                        + NO2         # 2.96D-14 @ -1000.0 ;
+
+<R386> TONIN  + HO         = HONIT                    # 4.8D-12 ;
+<R387> UTONIN + HO         = HONIT                    # 7.29D-11 ;
+<R388> UTONIN + O3         = HONIT                    # 1.67D-16 ;
+<R389> TONIT  + HO         = HONIT                    # 4.8D-12 ;
+<R390> UTONIT + HO         = HONIT                    # 7.29D-11 ;
+<R391> UTONIT + O3         = HONIT                    # 1.67D-16 ;
+<R392> TONIN  + NO3        = HONIT                    # 3.15D-13 @ 448.0 ;
+<R393> UTONIN + NO3        = HONIT                    # 3.15D-13 @ 448.0 ;
+<R384> TONIT  + NO3        = HONIT                    # 3.15D-13 @ 448.0 ;
+<R395> UTONIT + NO3        = HONIT                    # 3.15D-13 @ 448.0 ;
+<R396> TONIH  + NO3        = HONIT                    # 3.15D-13 @ 448.0 ;
+<R397> TONIH  + HO         = HONIT                    # 9.3D-12 ;
+<R398> TONIH  + O3         = HONIT                    # 1.6D-16 ;
+<R399>  HONIT + HO          = NO3                   %2 # 2.4E-14 @ -460 &
+                                                        2.7E-17 @ -2199 &
+                                                        6.5E-34 @ -1335;
+
+
+<R400> HAC   + HO          = MGLY       + HO2         # 1.6D-12 @ 305.0 ;
+<R401> DIBOO + NO          = NO2        + HO2
+                                        + 0.52*GLYC
+                                        + 0.52*MGLY 
+                                        + 0.48*GLY
+                                        + 0.48*HAC    # 2.7D-12 @ -360.0 ;
+<R402> DIBOO + HO2         = 0.33*IAP   + 0.67*HO
+                                        + 0.348*GLYC
+                                        + 0.348*MGLY
+                                        + 0.322*GLY
+                                        + 0.322*HAC
+                                        + 0.67*HO2    # 2.06D-13 @ -1300.0;
+<R403> DIBOO + MO2         = 0.396*DHMOB + 0.88*HCHO
+                                         + 0.364*GLYC
+                                         + 0.364*MGLY
+                                         + 1.208*HO2
+                                         + 0.12*MOH
+                                         + 0.24*GLY
+                                         + 0.24*HAC   # 4.6D-13 ;
+<R404> DIBOO + ACO3        = 0.52*GLYC  + 0.52*MGLY
+                                        + 0.952*HO2
+                                        + 0.952*MO2
+                                        + 0.432*GLY
+                                        + 0.432*HAC
+                                        + 0.048*ORA2
+                                        + 0.048*DHMOB # 5.8D-13 @ -500.0;
+<R405> DIBOO + NO3         = NO2        + HO2
+                                        + 0.52*GLYC
+                                        + 0.52*MGLY
+                                        + 0.48*GLY
+                                        + 0.48*HAC    # 2.3D-12 ;
+<R406> UHC   + O3          = 0.503*MGLY + 0.89*HO
+                                        + 0.89*CO
+                                        + 0.659*HO2
+                                        + 0.231*HCHO
+                                        + 0.018*MOH
+                                        + 0.271*GLYC
+                                        + 0.076*H2O2
+                                        + 0.266*HAC
+                                        + 0.266*GLY
+                                        + 0.231*ACO3  # 4.0D-17;
+<R407> UHC   + NO3         = HNO3       + UHCAP       # 5.95D-12 @ 1860.0;
+<R408> UHC   + HO          = 0.74*UHCP  + 0.26*UHCAP  # 1.1D-11 ;
+<R409> UHCP  + NO          = 0.39*DHMOB + 0.32*GLYC
+                                        + 0.32*MGLY
+                                        + 0.29*HAC
+                                        + 0.29*GLY
+                                        + HO2
+                                        + NO2         # 2.7D-12 @ -360.0;
+<R410> UHCP  + MO2        = 0.573*DHMOB + HCHO
+                                        + 1.4*HO2
+                                        + 0.222*GLYC
+                                        + 0.222*MGLY
+                                        + 0.205*HAC
+                                        + 0.205*GLY   # 8.24D-14 ;
+<R411> UHCAP + MO2         = 0.1*ORA2   + HCHO
+                                        + 1.8*HO2
+                                        + 0.585*MOBA
+                                        + 0.315*ALD
+                                        + 0.315*CO    # 8.83D-13 @ -500.0;
+<R412> UHCP  + ACO3        = MO2        + 0.39*DHMOB
+                                        + 0.32*GLYC
+                                        + 0.32*MGLY
+                                        + 0.29*HAC
+                                        + 0.29*GLY
+                                        + HO2         # 1.04D-13 @ -500.0 ;
+<R413> UHCP  + NO3         = NO2        + 0.39*DHMOB
+                                        + 0.317*GLYC
+                                        + 0.317*MGLY
+                                        + 0.293*GLY
+                                        + 0.293*HAC
+                                        + HO2         # 2.3D-12 ;
+<R414> UHCAP + NO          = NO2        + 0.65*MOBA
+                                        + 0.35*ALD
+                                        + 0.35*CO
+                                        + HO2         # 7.5D-12 @ -290.0;
+<R415> UHCP  + HO2         = 0.652*IAP  + 0.136*DHMOB
+                                        + 0.212*MGLY
+                                        + 0.212*GLYC
+                                        + 0.348*HO
+                                        + 0.348*HO2   # 2.06D-13 @ -1300.0;
+<R416> UHCAP + HO2         = 0.4*IAP    + 0.2*ORA2
+                                        + 0.2*O3
+                                        + 0.4*HO
+                                        + 0.26*MOBA
+                                        + 0.14*ALD
+                                        + 0.14*CO     # 5.2D-13 @ -980.0;
+<R417> UHCAP + ACO3        = MO2        + HO2
+                                        + 0.65*MOBA
+                                        + 0.35*ALD
+                                        + 0.35*CO     # 2.9D-12 @ -500.0 ;
+<R418> UHCAP + NO3         = NO2        + HO2
+                                        + 0.65*MOBA
+                                        + 0.35*ALD
+                                        + 0.35*CO     # 4.0D-12 ;
+<R419> PYAC   + HO         = ACO3                     # 8.0D-13 ;
+<R420> MOBA   + HO         = MOBAOO                   # 3.0D-12 ;
+<R421> MOBAOO + NO         = ALD        + HO2 + NO2   # 8.0D-12 ;
+<R422> MOBAOO + HO2        = OP2                      # 2.06D-13 @ -1300.0 ;
+<R423> MOBAOO + MO2        = 0.7*ALD    + 1.4*HO2
+                                        + HCHO
+                                        + 0.3*ROH     # 3.55D-12 ;
+<R424> MOBAOO + ACO3       = ALD        + HO2 
+                                        + MO2         # 4.23D-12 @ -500.0 ;
+<R425> MOBAOO + NO3        = NO2        + HO2
+                                        + ALD         # 2.3D-12;
+<R426> DHMOB  + HO         = 1.5*CO     + 0.5*HO2
+                                        + 0.5*HAC
+                                        + 0.5*ALD     # 1.0D-11 ;
+<R427> IAP    + HO         = 0.165*UHCAP + 0.495*UHCP
+                                        + 0.34*DIBOO  # 2.7D-11 @ -200.0;
+<R428> GLYC   + HO         = 0.2*GLY    + 0.2*HO2
+                                        + 0.8*RCO3    # 1.0D-11 ;
+<R429> GLYC   + NO3        = RCO3       + HNO3        # 1.4D-12 @ 1860.0 ;
+
+<R430> ISOP                = HPALD      + HO2 
+					+ ISOPRXN    # 4.12D8 @ 7700.0 ;
+<R431> HPALD  + HO         = HO                       # 4.6D-11 ;
+<R432> MOBA   + O3         = 0.555*MGLY + 0.89*HO
+                                        + 0.89*CO
+                                        + 0.445*HO2
+                                        + 0.076*H2O2
+                                        + 0.555*GLY
+                                        + 0.231*KETP
+                                        + 0.214*ACO3  # 2.0D-17 ;
+
+<R433> ISOPNB + HO         = 0.88*ISOPNBO2 + 0.12*IEPOXA
+                                        + 0.12*NO2    # 2.4D-12 @ -745.0;
+<R434> ISOPND + HO         = ISOPNDO2                 # 1.2D-11 @ -652.0 ;
+<R435> ISOPNBO2 + NO        = 0.88*NO2   + 0.69*HO2 
+                                        + 0.21*DHDN
+                                        + 0.26*MVKN 
+                                        + 0.44*MACRN 
+                                        + 0.09*HAC 
+                                        + 0.09*GLYC
+                                        + 0.69*HCHO   # 2.4D-12 @ -360.0;
+<R436> ISOPNDO2 +  NO  = 0.84*NO2   + 0.65*HO2 
+                                        + 0.23*DHDN 
+                                        + 0.08*MVKN 
+                                        + 0.02*MACRN 
+                                        + 0.32*PROPNN 
+                                        + 0.22*ETHLN 
+                                        + 0.29*HAC 
+                                        + 0.32*GLYC 
+                                        + 0.06*ORA1 
+                                        + 0.16*HCHO   # 2.4D-12 @ -360.0;
+<R437> ISOPNBO2 + MO2     = 0.128*MACRN + 0.16*MOH
+                                        + 0.101*MVKN
+                                        + 0.801*HO2
+                                        + 1.069*HCHO
+                                        + 0.343*HAC
+                                        + 0.343*GLYC
+                                        + 0.343*NO2
+                                        + 0.428*IMONIT # 6.7D-13 ;
+<R438> ISOPNBO2 + ACO3   = 0.064*IMONIT + 0.23*MACRN
+                                        + 0.144*MVKN
+                                        + 0.374*HCHO
+                                        + 0.562*HAC
+                                        + 0.562*GLYC
+                                        + 0.562*NO2
+                                        + 0.936*MO2
+                                        + 0.374*HO2
+                                        + 0.064*ORA2  # 8.16D-13 @ -500.0 ;
+<R439> ISOPNBO2 + NO3     = 0.256*MACRN + 0.144*MVKN
+                                        + 0.6*HAC
+                                        + 0.6*GLYC
+                                        + 0.4*HCHO
+                                        + 0.4*HO2
+                                        + 1.6*NO2     # 2.3D-12 ;
+<R440> ISOPNDO2 + MO2      = 1.506*HCHO + 0.949*HO2
+                                        + 0.3*IMONIT
+                                        + 0.055*MVKN
+                                        + 0.309*HAC
+                                        + 0.093*ETHLN
+				        + 0.216*ORA1
+                                        + 0.235*HKET
+                                        + 0.101*PROPNN
+                                        + 0.101*GLYC
+                                        + 0.216*NO3
+                                        + 0.235*NO2   # 7.5D-14 ;
+<R441> ISOPNDO2 + ACO3     = 0.078*MVKN + 0.442*HAC
+                                        + 0.133*ETHLN
+                                        + 0.309*ORA1
+                                        + 0.336*HKET
+                                        + 0.144*PROPNN
+                                        + 0.144*GLYC
+                                        + 0.723*HCHO
+                                        + 0.355*HO2
+                                        + 0.309*NO3
+                                        + MO2
+                                        + 0.336*NO2   # 9.53D-14 @ -500.0;
+<R442> ISOPNDO2 + NO3      = 0.078*MVKN + 0.442*HAC
+                                        + 0.133*ETHLN
+                                        + 0.309*ORA1
+                                        + 0.336*HKET
+                                        + 0.144*PROPNN
+                                        + 0.144*GLYC
+                                        + 0.723*HCHO
+                                        + 0.355*HO2
+                                        + 0.309*NO3
+                                        + 1.336*NO2   # 2.3D-12 ;
+<R443> ISOPNDO2 + HO2      = ISNP                     # 2.06D-13 @ -1300.0 ;
+<R444> ISOPNBO2 + HO2      = ISNP                     # 2.06D-13 @ -1300.0 ;
+<R445> ISOPND  + O3        = 0.266*PROPNN + 0.017*ORA2
+                                        + 0.249*GLYC
+                                        + 0.075*H2O2
+                                        + 0.89*HO
+                                        + 0.445*HO2
+                                        + 0.214*CO
+                                        + 0.214*HCHO
+                                        + 0.445*NO2
+                                        + 0.271*ETHLN
+                                        + 0.018*IMONIT
+                                        + 0.445*MGLY
+                                        + 0.289*HAC
+                                        + 0.231*GLY   # 2.9D-17 ;
+<R446> ISOPNB  + O3        = 0.541*HCHO + 0.506*CO
+                                        + 0.526*HO
+                                        + 0.327*NO2
+                                        + 0.179*HAC
+                                        + 0.102*H2O2
+                                        + 0.349*MACRN
+                                        + 0.112*IMONIT
+                                        + 0.327*HO2
+                                        + 0.068*ORA1
+                                        + 0.212*MVKN
+                                        + 0.148*MGLY  # 3.7D-19 ;
+<R448> ISNP    + HO        = 0.460*ISOPNDO2
+                                        + 0.097*ISOPNBO2
+                                        + 0.443*IMONIT
+                                        + 0.443*HO    # 1.67D-11 @ -200.0;
+<R449> PROPNN  + HO        = NO2        + MGLY        # 1.0D-12 ;
+<R450> ETHLN   + HO        = HCHO       + NO2         # 1.0D-11 ;
+<R451> MACRN   + HO        = 0.08*ORA2  + 0.08*HCHO
+                                        + 0.15*NO3
+                                        + 0.07*ORA1
+                                        + 0.07*MGLY
+                                        + 0.85*HAC 
+                                        + 0.85*NO2    # 5.0D-11 ;
+<R452> MVKN    + HO        = 0.65*ORA1  + 0.65*MGLY
+                                        + 0.35*HCHO
+                                        + 0.35*PYAC
+                                        + NO3         # 5.6D-12 ;
+<R453> IMONIT  + HO        = HKET       + NO2         # 7.2D-12 ;
+<R454> VRP     + HO        = 0.7*MVKP   + 0.3*KET
+                                        + 0.3*HO      # 3.8D-12 @ -200.0;
+<R455> IEPOXA  + HO        = IEPOXOO                  # 3.73D-11 @ 400.0 ;
+<R456> IEPOXB  + HO        = IEPOXOO                  # 5.79D-11 @ 400.0 ;
+<R457> IEPOXD  + HO        = IEPOXOO                  # 3.20D-11 @ 400.0 ;
+<R458> IEPOXOO + HO2       = 0.725*HAC  + 0.275*GLYC
+                                        + 0.275*GLY
+                                        + 0.275*MGLY
+                                        + 1.125*HO
+                                        + 0.825*HO
+                                        + 0.375*HCHO
+                                        + 0.074*ORA1
+                                        + 0.251*CO    # 7.4D-13 @ -700.0 ;
+<R459> IEPOXOO + NO        = 0.725*HAC  + 0.275*GLYC
+                                        + 0.275*GLY
+                                        + 0.275*MGLY
+                                        + 1.125*HO
+                                        + 0.825*HO2
+                                        + 0.375*HCHO
+                                        + 0.074*ORA1
+                                        + 0.251*CO
+                                        + NO2         # 2.7D-12 @ -360.0;
+<R460> IEPOXOO + NO3       = 0.725*HAC  + 0.275*GLYC
+                                        + 0.275*GLY
+                                        + 0.275*MGLY
+                                        + 1.125*HO
+                                        + 0.825*HO2
+                                        + 0.375*HCHO
+                                        + 0.074*ORA1
+                                        + 0.251*CO    # 2.3D-12 @ -700.0 ;
+<R461> HPALD               = HO         + HO2
+                                        + 0.5*HAC
+                                        + 0.5*MGLY
+                                        + 0.25*GLYC
+                                        + 0.25*GLY
+                                        + HCHO        # 1.0/<HPALD_RACM2> ;
+<R462> HAC                 = ACO3       + HCHO
+                                        + HO2         # 1.0/<CH3COCH3_RACM2>;
+<R463> GLYC                = 2.0*HO2    + HCHO
+                                        + CO          # 1.0/<HOCCHO_RACM2>;
+<R464> MAHP                = ACO3       + HO         # 1.0/<OP1_RACM2>;
+<R465> PYAC                = ACO3       + HO2         # 1.0/<PYRUACID_RACM2>;
+<R466> ISHPA               = HO         + 0.202*UHC
+                                        + 0.108*DIBOO
+                                        + 0.44*MVK
+                                        + 0.25*MACR
+                                        + 0.69*HCHO
+                                        + 0.892*HO2   # 1.0/<OP1_RACM2> ;
+<R467> ISHPB               = HO         + 0.202*UHC
+                                        + 0.108*DIBOO
+                                        + 0.44*MVK
+                                        + 0.25*MACR
+                                        + 0.69*HCHO
+                                        + 0.892*HO2   # 1.0/<OP1_RACM2> ;
+<R468> ISHPD               = HO         + 0.202*UHC
+                                        + 0.108*DIBOO
+                                        + 0.44*MVK
+                                        + 0.25*MACR
+                                        + 0.69*HCHO
+                                        + 0.892*HO2   # 1.0/<OP1_RACM2> ;
+<R469> UHC                 = 0.5*UHCAP  + 1.24*HO2
+					+ 0.26*ACO3
+					+ 0.74*CO
+					+ 0.26*GLYC
+					+ 0.24*HAC    # 1.0/<MACR_RACM2>;
+<R470> MOBA                = 0.53*PYAC  + 0.48*GLY
+					+ 1.52*HO2
+					+ 2.0*CO
+					+ 0.48*MO2    # 1.0/<MACR_RACM2>;
+<R471> VRP                 = HO         + 0.7*ACO3
+					+ 0.7*GLYC
+					+ 0.3*MGLY
+					+ 0.3*HCHO
+					+ 0.3*HO2     # 1.0/<OP1_RACM2> ;
+<R472> ISNP                = HO         + 0.686*HO2
+					+ 0.298*PROPNN
+					+ 0.612*GLYC
+					+ 0.632*HAC
+					+ 0.318*ETHLN
+					+ 0.314*NO2
+					+ 0.07*MVKN
+					+ 0.07*HCHO   # 1.0/<OP1_RACM2> ;
+<R473> IAP                 = HO         + 0.107*MOBA
+					+ 0.058*ALD
+					+ 0.058*CO
+					+ 0.193*DHMOB
+					+ 0.335*GLYC
+					+ 0.335*MGLY
+					+ 0.307*HAC
+					+ 0.307*GLY
+					+ HO2         # 1.0/<OP1_RACM2> ;
+<R474> DHMOB               = HO2        + CO
+                                        + KETP        # 1.0/<ALD_RACM2> ;
+<R475> ISOPNB              = ISOP       + NO2         # 0.333/<ISOPNB_RACM2> ;
+<R476> ISOPND              = ISOP       + NO2         # 1.0/<ISOPND_RACM2> ;
+<R477> IMONIT              = HKET       + NO2         # 0.333/<IMONIT_RACM2> ;
+<R478> DONIT               = UALD       + NO2         # 0.333/<IMONIT_RACM2> ;
+<R479> TONIT               = KET        + NO2         # 0.333/<ISOPNB_RACM2> ; 
+<R480> AONIT               = KET        + NO2         # 0.333/<ISOPNB_RACM2> ;
+<R481> UTONIT              = UALD       + NO2         # 0.333/<ISOPNB_RACM2> ;
+<R482> HONIT               = HKET       + NO2         # 0.333/<ISOPNB_RACM2> ;
+<R483> TONIN               = KET        + NO2         # 0.333/<ISOPNB_RACM2> ;
+<R484> UTONIN              = UALD       + NO2         # 0.333/<ISOPNB_RACM2> ;
+<R485> TONIH               = KET        + NO2         # 0.333/<ISOPNB_RACM2> ;
+<R486> MONIT               = KET        + NO2         # 0.333/<IMONIT_RACM2> ;
+<R487> PROPNN              = NO2        + ACO3
+                                        + HCHO        # 1.0/<PROPNN_RACM2>;
+<R488> ETHLN               = HO2        + CO
+                                        + HCHO
+                                        + NO2         # 1.0/<ETHLN_RACM2>;
+<R489> MACRN               = NO2        + CO
+                                        + HAC
+                                        + HO2         # 1.0/<MACRN_RACM2>;
+<R490> MVKN                = GLYC       + NO2
+                                        + ACO3        # 1.0/<MVKN_RACM2>;
+<R491> INO2    + INO2      = 0.39*INO   + 0.67*ICN
+                                        + 0.10*MACR
+                                        + 0.616*IHND
+                                        + 0.154*IHNB
+                                        + 0.035*INO2IN # 5.2D-12 ; 
+<R492> ICN     + NO3       = 0.1*INHED  + 0.1*NO2
+					+ 0.9*NC4CO3 
+           				+ 0.9*HNO3    # 6.3D-12 @ 1860 ;
+<R493> NC4CO3  + NO3       = PROPNN     + CO
+					+ HO2
+					+ NO2        # 4.0D-12 ;
+<R494> ICN     + HO        = 0.52*R4NO  + CO
+					+ 0.52*HO2
+					+ 0.48*R4N
+					+ 0.48*HO     # 4.1D-11  ;
+<R495> IDHNO2B + HO2       = 0.27*IDHPN + 0.73*HO
+                                        + 0.73*HO2 
+					+ 0.56*HAC 
+					+ 0.17*HCHO 
+					+ 0.56*ETHLN  
+					+ 0.17*R4N    # 2.04D-13 @ -1300 ; 
+<R496> IDHNO2D + HO2       = 0.27*IDHPN + 0.73*HO 
+    					+ 0.73*HO2 
+					+ 0.09*HAC
+  					+ 0.09*ETHLN 
+					+ 0.58*PROPNN
+					+ 0.58*GLYC 
+					+ 0.06*R4N 
+                       			+ 0.06*HCHO   # 2.04D-13 @ -1300 ;
+<R497> IHND    + HO      = 0.92*IDHNO2D + 0.08*IEPOXD
+					+ 0.08*NO2    # 1.1D-10 ; 
+<R498> IHNB    + HO        = IDHNO2B                  # 4.2D-11 ;
+<R499> INO     + O2        = 0.88*ICN   + 0.88*HO2
+					+ 0.12*NO2
+					+ 0.12*HCHO
+					+ 0.12*MACR   # 2.5D-14 @ 300  ; 
+<R500> INO2    + HO2       = 0.22*MVK   + 0.015*MACR
+					+ 0.235*NO2
+					+ 0.235*HO
+					+ 0.235*HCHO
+					+ 0.54*INPD
+					+ 0.23*INPB   # 2.06D-13 @ -1300 ;
+<R501> INPD     + HO       = HO2        + INO2        # 6.9D-12 ;
+<R502> INPB     + HO       = HO2        + INO2        # 6.9D-12 ; 
+<R503> INPD     + HO       = 0.37*INHED + 0.08*IEPOXD 
+					+ 0.08*NO2
+					+ 0.37*HO 
+					+ 0.63*INPHO2D # 1.1D-10 ;
+<R504> INPB     + HO       = 0.78*INHEB + 0.78*HO
+					+ 0.22*INPHO2B # 4.2D-11  ;
+<R505> INPHO2B  + HO2      = 0.27*IHDPN + 0.73*HO 
+					+ 0.73*HO2 
+					+ 0.73*HCHO
+					+ 0.73*R4NO   # 2.3D-12 ;
+<R506> INPHO2D  + HO2      = 0.27*IHDPN + 0.06*ETHLN 
+					+ 0.73*HO 
+					+ 0.73*HO2
+					+ 0.67*PROPNN 
+					+ 0.67*GLYC
+					+ 0.06*HAC    # 2.3D-12 ;
+<R507> INHED    + HO       = 0.27*HAC   + 0.73*CO
+					+ 0.27*NO2
+					+ 0.27*HCHO
+					+ 0.17*PROPNN
+					+ 0.17*GLY
+					+ 0.46*R4N
+					+ 0.1*INHED   # 8.4D-12  ;
+<R508> INHEB     + HO      = 0.08*INHEB + 0.22*PROPNN
+					+ 0.22*GLY
+					+ 0.31*GLYC
+					+ 0.31*MGLY
+					+ 0.09*HAC
+					+ 0.43*NO2
+					+ 0.39*HCHO
+					+ 0.01*ETHLN
+					+ 0.01*HAC
+					+ 0.12*KET
+					+ 0.26*R4N    # 1.25D-11  ;
+<R509> R4N       + HO      = PROPNN     + HO2
+					+ CO          # 1.7D-11 ;
+<R510> R4NO      + HO      = PROPNN     + HO
+					+ CO          # 1.7D-11 ;
+<R511> INPD                = INO        + HO          # 1.0/<OP1_RACM2> ;
+<R512> INPB                = INO        + HO          # 1.0/<OP1_RACM2> ;
+<R513> ICN                 = PROPNN     + 2*CO
+					+ 2*HO2       # 1.0/<PROPNN_RACM2> ;
+<R514> R4N                 = NO2        + ACO3
+					+ 0.5*ETHP
+					+ 0.5*MO2     # 1.0/<MEK_RACM2> ;
+<R515> R4NO                = HO         + MGLY
+					+ HCHO
+					+ NO2         # 1.0/<MEK_RACM2> ;
+<R516> IHND                = HO2        + NO2
+					+ UHC
+					+ DIBOO       # 1.0/<ISOPND_RACM2> ;
+<R517> IHND                = HO2        + NO2
+                                        + UHC
+                                        + DIBOO       # 0.333/<ISOPNB_RACM2> ;
+<R518> INO                 = IHNO2                    # 2.0D5 ;
+<R519> IHNO2     + NO3     = IHNO       + NO2         # 2.3D-12 ;
+<R520> IHNO      + O2      = IHPN       + HO2         # 2.5D-12 @ 300 ;
+<R521> IHNO2     + HO2     = IHPN                     # 2.04D-13 @ -1300 ;
+<R522> IHNO2     + IHNO2   = 0.46*IHNO  + 1.54*IHPN   # 10.0D-12 ;
+ 
+                                        
+! SOA related reactions 
+<SA01>  TOLRO2  + NO      = NO  + TOLNRXN             # 2.70e-12@-360 ;
+<SA02>  TOLRO2  + HO2     = HO2 + TOLHRXN             # 1.90e-13@-1300 ;
+<SA03>  XYLRO2  + NO      = NO  + XYLNRXN             # 2.70e-12@-360 ;
+<SA04>  XYLRO2  + HO2     = HO2 + XYLHRXN             # 1.90e-13@-1300 ; 
+<SA05>  BENZRO2 + NO      = NO  + BNZNRXN             # 2.70e-12@-360 ;
+<SA06>  BENZRO2 + HO2     = HO2 + BNZHRXN             # 1.90e-13@-1300 ;
+<SA07>  SESQ + O3         = O3  + SESQRXN             # 1.16E-14 ;
+<SA08>  SESQ + HO         = HO  + SESQRXN             # 1.97E-10 ;
+<SA09>  SESQ + NO3        = NO3 + SESQRXN             # 1.90E-11 ; 
+<SA10>  NAPH + HO         = HO  + PAHRO2              # 2.31E-11 ;
+<SA11>  PAHRO2  + NO      = NO  + PAHNRXN             # 2.70e-12@-360 ;
+<SA12>  PAHRO2  + HO2     = HO2 + PAHHRXN             # 1.90e-13@-1300 ; 
+<SA13>  SOAALK  + HO      = HO  + 0.47*ALKRXN         # 2.70e-12@-374 ;
+
+!Azimeh <SA14>  IEPOX + HO        = HO                        # 5.78E-11@400 ; 
+!Azimeh :at originall RACM2 IEPOX chemistry did not exist, so used the above reaction to recycle OH
+
+! heteorogeneous reactions from hetchem and poaaging routines version 5.0.2
+
+<HET_N2O5> N2O5 = 2.0*HNO3 # 1.0~<HETERO_N2O5IJ> ;
+
+<HET_N02> NO2 = 0.5*HONO + 0.5*HNO3 # 1.0~<HETERO_NO2> ;
+
+! Simplified ozone loss from oceanic halogens excluding chlorine
+
+<HAL_Ozone> O3 =  %H # 1.0000E-40@-78.4256 & 4.0582E-9@-5.8212 ;
+
+!Azimeh <HET_IEPOX> IEPOX = AISO3J  # 1.0~<HETERO_IEPOX> ;
+<HET_IEPOX> IEPOXA = AISO3J  # 1.0~<HETERO_IEPOX> ;
+<HET_IEPOX> IEPOXB = AISO3J  # 1.0~<HETERO_IEPOX> ;
+<HET_IEPOX> IEPOXD = AISO3J  # 1.0~<HETERO_IEPOX> ;
+
+
+! Azimeh : we add Hetrogeneous reactions for GLY and MGLY
+<HET_GLY>  GLY  = AGLYJ # 1.0~<HETERO_GLY>;
+<HET_MGLY> MGLY = AGLYJ # 1.0~<HETERO_MGLY>;
+
+
+
+!Azimeh: particle-phase organic nitrates : Hetrogenous uptake <HET_ISOPN> 
+<HET_ISOPND> ISOPND = AHISOPNDJ  #1.0~<HETERO_ISOPND>;
+<HET_ISOPNB> ISOPNB = AHISOPNBJ  #1.0~<HETERO_ISOPNB>;
+<HET_MVKN>   MVKN   = AHMVKNJ   #1.0~<HETERO_MVKN>;
+<HET_MACRN>  MACRN  = AHMACRNJ  #1.0~<HETERO_MACRN>;
+<HET_DHDN>   DHDN   = AHDHDNJ   #1.0~<HETERO_DHDN>;
+<HET_IMONIT> IMONIT = AHIMONITJ #1.0~<HETERO_IMONIT>;
+<HET_UTONIT> UTONIT = AHUTONITJ #1.0~<HETERO_UTONIT>;
+<HET_UTONIN> UTONIN = AHUTONINJ #1.0~<HETERO_UTONIN>;
+<HET_TONIT>  TONIT  = AHTONITJ  #1.0~<HETERO_TONIT>;
+<HET_TONIN>  TONIN  = AHTONINJ  #1.0~<HETERO_TONIN>;
+<HET_TONIH>  TONIH  = AHTONIHJ  #1.0~<HETERO_TONIH>;
+<HET_HONIT>  HONIT  = AHHONITJ  #1.0~<HETERO_HONIT>;
+<HET_INHED>  INHED  = AHINHEJ   #1.0~<HETERO_INHE>;
+<HET_INHEB>  INHEB  = AHINHEJ   #1.0~<HETERO_INHE>;
+<HET_IHPN>   IHPN   = AHIHPNJ   #1.0~<HETERO_IHPN>;
+<HET_IHDPN>  IHDPN  = AHIHDPNJ  #1.0~<HETERO_IHDPN>;
+<HET_IDHPN>  IDHPN  = AHIDHPNJ  #1.0~<HETERO_IDHPN>;
+<HET_R4N>    R4N    = AHR4NJ    #1.0~<HETERO_R4N>;
+<HET_R4NO>   R4NO   = AHR4NOJ   #1.0~<HETERO_R4NO>;
+<HET_INPD>   INPD   = AHINPDJ   #1.0~<HETERO_INPD>;
+<HET_INPB>   INPB   = AHINPBJ   #1.0~<HETERO_INPB>;
+<HET_IHND>   IHND   = AHIHNDJ   #1.0~<HETERO_ISOPND>;
+<HET_IHNB>   IHNB   = AHIHNBJ   #1.0~<HETERO_ISOPNB>;
+<HET_ISNP>   ISNP   = AHISNPJ   #1.0~<HETERO_ISNP>;
+
+
+
+!Azimeh: Hydrolysis of particle-phase organic nitrates from  Heterogeneous uptake
+<HYD_AHISOPNDJ> AHISOPNDJ = HNO3 + 0.5*AHMTHYJ           #4.2E-3; 
+<HYD_AHIHNDJ>   AHIHNDJ   = HNO3 + 0.5*AHMTHYJ           #4.2E-3;
+<HYD_AHINPDJ>   AHINPDJ   = HNO3 + 0.5*AHMTHYJ           #4.2E-3;
+<HYD_AHISOPNBJ> AHISOPNBJ = HNO3 + 0.5*AHMTHYJ           #4.1E-3;  
+<HYD_AHINPBJ>   AHINPBJ   = HNO3 + 0.5*AHMTHYJ           #4.1E-3;
+<HYD_AHIHNBJ>   AHIHNBJ   = HNO3 + 0.5*AHMTHYJ           #4.1E-3;
+<HYD_AHMVKNJ>   AHMVKNJ   = HNO3 + 0.4*AHMTHYJ           #1.1E-7;
+<HYD_AHMACRNJ>  AHMACRNJ  = HNO3 + 0.4*AHMTHYJ           #7.5E-3;
+<HYD_AHDHDNJ>   AHDHDNJ   = 2.0*HNO3 + 0.5*AHMTHYJ       #3.4E-4;
+<HYD_AHIMONITJ> AHIMONITJ = HNO3 + 0.5*AHMTHYJ           #2.2E-3;
+<HYD_AHUTONITJ> AHUTONITJ = HNO3 + AHMTHYJ               #5.3E-3;
+<HYD_AHUTONINJ> AHUTONINJ = HNO3 + AHMTHYJ               #6.7E-3;
+<HYD_AHTONITJ>  AHTONITJ  = HNO3 + AHMTHYJ               #7.1E-3;
+<HYD_AHTONINJ>  AHTONINJ  = HNO3 + AHMTHYJ               #1.3E-3;
+<HYD_AHTONIHJ>  AHTONIHJ  = HNO3 + AHMTHYJ               #1.7E-3;
+<HYD_AHHONITJ>  AHHONITJ  = HNO3 + AHMTHYJ               #4.1E-4;
+<HYD_AHIHPNJ>   AHIHPNJ   = HNO3 + 0.5*AHMTHYJ           #1.6E-5;
+<HYD_AHIHDPNJ>  AHIHDPNJ  = HNO3 + 0.5*AHMTHYJ           #1.1E-7;
+<HYD_AHIDHPNJ>  AHIDHPNJ  = HNO3 + 0.5*AHMTHYJ           #1.1E-7;
+<HYD_AHR4NJ>    AHR4NJ    = HNO3 + 0.5*AHMTHYJ           #1.1E-7;
+<HYD_AHR4NOJ>   AHR4NOJ   = HNO3 + 0.5*AHMTHYJ           #1.1E-7;
+<HYD_AHISNPJ>   AHISNPJ   = HNO3 + 0.5*AHMTHYJ           #1.4E-4;
+<HYD_AHINHEJ>   AHINHEJ   = HNO3 + 0.5*AHMTHYJ           #1.1E-7; 
+
+
+!Azimeh: Hydrolysis of particle-phase organic nitrates from Vapor-Pressure based partioning
+<HYD_AISOPNDJ> AISOPNDJ   = HNO3 + 0.5*AMTHYDJ           #4.2E-3;  
+<HYD_AIHNDJ>   AIHNDJ     = HNO3 + 0.5*AMTHYDJ           #4.2E-3;
+<HYD_AINPDJ>   AINPDJ     = HNO3 + 0.5*AMTHYDJ           #4.2E-3;
+<HYD_AISOPNBJ> AISOPNBJ   = HNO3 + 0.5*AMTHYDJ           #4.1E-3;  
+<HYD_AINPBJ>   AINPBJ     = HNO3 + 0.5*AMTHYDJ           #4.1E-3;
+<HYD_AIHNBJ>   AIHNBJ     = HNO3 + 0.5*AMTHYDJ           #4.1E-3;
+<HYD_AMVKNJ>   AMVKNJ     = HNO3 + 0.4*AMTHYDJ           #1.1E-7;
+<HYD_AMACRNJ>  AMACRNJ    = HNO3 + 0.4*AMTHYDJ           #7.5E-3;
+<HYD_ADHDNJ>   ADHDNJ     = 2.0*HNO3 + 0.5*AMTHYDJ       #3.4E-4;
+<HYD_AIMONITJ> AIMONITJ   = HNO3 + 0.5*AMTHYDJ           #2.2E-3;
+<HYD_AUTONITJ> AUTONITJ   = HNO3 + AMTHYDJ               #5.3E-3;
+<HYD_AUTONINJ> AUTONINJ   = HNO3 + AMTHYDJ               #6.7E-3;
+<HYD_ATONITJ>  ATONITJ    = HNO3 + AMTHYDJ               #7.1E-3;
+<HYD_ATONINJ>  ATONINJ    = HNO3 + AMTHYDJ               #1.3E-3;
+<HYD_ATONIHJ>  ATONIHJ    = HNO3 + AMTHYDJ               #1.7E-3;
+<HYD_AHONITJ>  AHONITJ    = HNO3 + AMTHYDJ               #4.1E-4;
+<HYD_AIHPNJ>   AIHPNJ     = HNO3 + 0.5*AMTHYDJ           #1.6E-5;
+<HYD_AIHDPNJ>  AIHDPNJ    = HNO3 + 0.5*AMTHYDJ           #1.1E-7;
+<HYD_AIDHPNJ>  AIDHPNJ    = HNO3 + 0.5*AMTHYDJ           #1.1E-7;
+<HYD_AR4NJ>    AR4NJ      = HNO3 + 0.5*AMTHYDJ           #1.1E-7;
+<HYD_AR4NOJ>   AR4NOJ     = HNO3 + 0.5*AMTHYDJ           #1.1E-7;
+<HYD_AISNPJ>   AISNPJ     = HNO3 + 0.5*AMTHYDJ           #1.4E-4;
+<HYD_AINHEJ>   AINHEJ     = HNO3 + 0.5*AMTHYDJ           #1.1E-7;
+
+! oligomerization reaction for secondary organic aerosols
+
+<OLIG_XYLENE1>    AXYL1J = 1.1428*AOLGAJ  # 9.48816E-6;
+<OLIG_XYLENE2>    AXYL2J = 1.1428*AOLGAJ  # 9.48816E-6;
+<OLIG_TOLUENE1>   ATOL1J = 1.0000*AOLGAJ  # 9.48816E-6;
+<OLIG_TOLUENE2>   ATOL2J = 1.0000*AOLGAJ  # 9.48816E-6;
+<OLIG_BENZENE1>   ABNZ1J = 0.85714*AOLGAJ # 9.48816E-6;
+<OLIG_BENZENE2>   ABNZ2J = 0.85714*AOLGAJ # 9.48816E-6;
+<OLIG_TERPENE1>   ATRP1J = 1.0000*AOLGBJ  # 9.48816E-6;
+<OLIG_TERPENE2>   ATRP2J = 1.0000*AOLGBJ  # 9.48816E-6;
+<OLIG_ISOPRENE1>  AISO1J = 0.50*AOLGBJ    # 9.48816E-6;
+<OLIG_ISOPRENE2>  AISO2J = 0.50*AOLGBJ    # 9.48816E-6;
+<OLIG_SESQT1>     ASQTJ  = 1.50*AOLGBJ    # 9.48816E-6;
+<OLIG_PAH1>       APAH1J = 1.4286*AOLGAJ  # 9.48816E-6;
+<OLIG_PAH2>       APAH2J = 1.4286*AOLGAJ  # 9.48816E-6;
+<OLIG_ALK1>       AALK1J = 1.7143*AOLGAJ  # 9.48816E-6;
+<OLIG_ALK2>       AALK2J = 1.7143*AOLGAJ  # 9.48816E-6;
+
+! Formation of Potential Combustion SOA (pcSOA)
+<PCSOA>  PCVOC + HO       = HO  + PCSOARXN  # 1.25E-11;
+
+! Aging with Func. and Frag. (Donahue et al. 2012)
+<POA_AGE1> VLVPO1 + HO = HO 
+      + 0.4857 * VLVPO1 + 0.0062 * VSVPO1
+      + 0.0025 * VSVPO2 + 0.0026 * VSVPO3
+      + 0.0023 * VIVPO1 + 0.2944 * VLVOO1
+      + 0.2021 * VLVOO2 + 0.0019 * VSVOO2
+      + 0.0023 * VSVOO3                   #4.0e-11;
+<POA_AGE2> VSVPO1 + HO = HO 
+      + 0.3003 * VLVPO1 + 0.2862 * VSVPO1
+      + 0.0041 * VSVPO2 + 0.0035 * VSVPO3
+      + 0.2239 * VLVOO1 + 0.1820 * VLVOO2 #4.0e-11;
+<POA_AGE3> VSVPO2 + HO = HO
+      + 0.3856 * VLVPO1 + 0.0950 * VSVPO1
+      + 0.1373 * VSVPO2 + 0.0005 * VSVPO3
+      + 0.2051 * VLVOO1 + 0.1764 * VLVOO2 #4.0e-11;
+<POA_AGE4> VSVPO3 + HO = HO 
+      + 0.2181 * VLVPO1 + 0.3063 * VSVPO1
+      + 0.0153 * VSVPO2 + 0.1043 * VSVPO3
+      + 0.1893 * VLVOO1 + 0.1668 * VLVOO2 #4.0e-11;
+<POA_AGE5> VIVPO1 + HO = HO 
+      + 0.2412 * VLVPO1 + 0.2089 * VSVPO1
+      + 0.3000 * VSVPO2 + 0.2028 * VLVOO1
+      + 0.0471 * VLVOO2                   #4.0e-11;
+<POA_AGE6> VLVOO1 + HO = HO 
+      + 0.6664 * VLVOO1 + 0.0143 * VLVOO2
+      + 0.0123 * VSVOO1 + 0.1239 * VSVOO2
+      + 0.1831 * VSVOO3                   #4.0e-11;
+<POA_AGE7> VLVOO2 + HO = HO
+      + 0.2858 * VLVOO1 + 0.3931 * VLVOO2
+      + 0.0139 * VSVOO1 + 0.1027 * VSVOO2
+      + 0.2045 * VSVOO3                   #4.0e-11;
+<POA_AGE8> VSVOO1 + HO = HO 
+      + 0.3303 * VLVOO1 + 0.2272 * VLVOO2
+      + 0.2607 * VSVOO1 + 0.0702 * VSVOO2
+      + 0.1116 * VSVOO3                   #4.0e-11;
+<POA_AGE9> VSVOO2 + HO = HO
+      + 0.3444 * VLVOO1 + 0.2749 * VLVOO2
+      + 0.0491 * VSVOO1 + 0.2577 * VSVOO2
+      + 0.0739 * VSVOO3                   #4.0e-11;
+<POA_AGE10> VSVOO3 + HO = HO 
+      + 0.3886 * VLVOO1 + 0.2421 * VLVOO2
+      + 0.0640 * VSVOO1 + 0.0385 * VSVOO2
+      + 0.2667 * VSVOO3                   #4.0e-11;         
+
+
+
+
+END MECH
+
+CONSTANTS
+<C1> ATM_AIR = 1.0E+06
+<C2> ATM_H2  = 0.56
+<C3> ATM_N2  = 0.7808E+06
+<C4> ATM_O2  = 0.2095E+06
+<C5> ATM_CH4 = 1.85
+END CONSTANTS
+
+
+

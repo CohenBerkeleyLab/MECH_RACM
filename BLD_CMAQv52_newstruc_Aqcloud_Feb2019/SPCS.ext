@@ -1,0 +1,293 @@
+C --------- Mechanism CTM Species intermediate INCLUDE File ----------
+!  /global/scratch/azare/EPA_Project/CMAQ_v5.2/CCTM/src/MECHS/racm2_ae6_aq-Feb-22-2019-INTEL/SPCS.ext
+C Generated from ...
+!  /global/scratch/azare/EPA_Project/CMAQ_v5.2/CCTM/src/MECHS/racm2_ae6_aq/mech_racm2_ae6_aq.def
+C for Mechanism Name:                                 RACM2_AE6_AQ                    
+
+C The following are reserved symbols declared in this INCLUDE file:
+C    NSPCS    = Number of mechanism species
+C    SPCNAMES = Table of mechanism species names
+C    SPC1RX   = rx index of 1st occurence of species in mechanism table
+
+      INTEGER, PARAMETER :: NSPCS = 273
+
+      CHARACTER( 16 ) :: SPCNAMES( NSPCS )
+      INTEGER         :: SPC1RX( NSPCS )
+
+      DATA SPCNAMES(  1), SPC1RX(  1)  / 'O3              ',   1 /
+      DATA SPCNAMES(  2), SPC1RX(  2)  / 'O3P             ',   2 /
+      DATA SPCNAMES(  3), SPC1RX(  3)  / 'O1D             ',   3 /
+      DATA SPCNAMES(  4), SPC1RX(  4)  / 'H2O2            ',   4 /
+      DATA SPCNAMES(  5), SPC1RX(  5)  / 'HO              ',   5 /
+      DATA SPCNAMES(  6), SPC1RX(  6)  / 'NO2             ',   6 /
+      DATA SPCNAMES(  7), SPC1RX(  7)  / 'NO              ',   7 /
+      DATA SPCNAMES(  8), SPC1RX(  8)  / 'NO3             ',   8 /
+      DATA SPCNAMES(  9), SPC1RX(  9)  / 'HONO            ',   9 /
+      DATA SPCNAMES( 10), SPC1RX( 10)  / 'HNO3            ',  10 /
+      DATA SPCNAMES( 11), SPC1RX( 11)  / 'HNO4            ',  11 /
+      DATA SPCNAMES( 12), SPC1RX( 12)  / 'HO2             ',  12 /
+      DATA SPCNAMES( 13), SPC1RX( 13)  / 'HCHO            ',  13 /
+      DATA SPCNAMES( 14), SPC1RX( 14)  / 'CO              ',  14 /
+      DATA SPCNAMES( 15), SPC1RX( 15)  / 'ACD             ',  15 /
+      DATA SPCNAMES( 16), SPC1RX( 16)  / 'MO2             ',  16 /
+      DATA SPCNAMES( 17), SPC1RX( 17)  / 'ALD             ',  17 /
+      DATA SPCNAMES( 18), SPC1RX( 18)  / 'ETHP            ',  18 /
+      DATA SPCNAMES( 19), SPC1RX( 19)  / 'ACT             ',  19 /
+      DATA SPCNAMES( 20), SPC1RX( 20)  / 'ACO3            ',  20 /
+      DATA SPCNAMES( 21), SPC1RX( 21)  / 'UALD            ',  21 /
+      DATA SPCNAMES( 22), SPC1RX( 22)  / 'KET             ',  22 /
+      DATA SPCNAMES( 23), SPC1RX( 23)  / 'MEK             ',  23 /
+      DATA SPCNAMES( 24), SPC1RX( 24)  / 'HKET            ',  24 /
+      DATA SPCNAMES( 25), SPC1RX( 25)  / 'MACR            ',  25 /
+      DATA SPCNAMES( 26), SPC1RX( 26)  / 'MACP            ',  26 /
+      DATA SPCNAMES( 27), SPC1RX( 27)  / 'MVK             ',  27 /
+      DATA SPCNAMES( 28), SPC1RX( 28)  / 'OLT             ',  28 /
+      DATA SPCNAMES( 29), SPC1RX( 29)  / 'GLY             ',  29 /
+      DATA SPCNAMES( 30), SPC1RX( 30)  / 'MGLY            ',  30 /
+      DATA SPCNAMES( 31), SPC1RX( 31)  / 'DCB1            ',  31 /
+      DATA SPCNAMES( 32), SPC1RX( 32)  / 'XO2             ',  32 /
+      DATA SPCNAMES( 33), SPC1RX( 33)  / 'DCB2            ',  33 /
+      DATA SPCNAMES( 34), SPC1RX( 34)  / 'BALD            ',  34 /
+      DATA SPCNAMES( 35), SPC1RX( 35)  / 'CHO             ',  35 /
+      DATA SPCNAMES( 36), SPC1RX( 36)  / 'OP1             ',  36 /
+      DATA SPCNAMES( 37), SPC1RX( 37)  / 'OP2             ',  37 /
+      DATA SPCNAMES( 38), SPC1RX( 38)  / 'PAA             ',  38 /
+      DATA SPCNAMES( 39), SPC1RX( 39)  / 'ONIT            ',  39 /
+      DATA SPCNAMES( 40), SPC1RX( 40)  / 'PAN             ',  40 /
+      DATA SPCNAMES( 41), SPC1RX( 41)  / 'N2O5            ',  41 /
+      DATA SPCNAMES( 42), SPC1RX( 42)  / 'SO2             ',  42 /
+      DATA SPCNAMES( 43), SPC1RX( 43)  / 'SULF            ',  43 /
+      DATA SPCNAMES( 44), SPC1RX( 44)  / 'SULRXN          ',  44 /
+      DATA SPCNAMES( 45), SPC1RX( 45)  / 'ETH             ',  45 /
+      DATA SPCNAMES( 46), SPC1RX( 46)  / 'HC3             ',  46 /
+      DATA SPCNAMES( 47), SPC1RX( 47)  / 'HC3P            ',  47 /
+      DATA SPCNAMES( 48), SPC1RX( 48)  / 'HC5             ',  48 /
+      DATA SPCNAMES( 49), SPC1RX( 49)  / 'HC5P            ',  49 /
+      DATA SPCNAMES( 50), SPC1RX( 50)  / 'HC8             ',  50 /
+      DATA SPCNAMES( 51), SPC1RX( 51)  / 'HC8P            ',  51 /
+      DATA SPCNAMES( 52), SPC1RX( 52)  / 'ETE             ',  52 /
+      DATA SPCNAMES( 53), SPC1RX( 53)  / 'ETEP            ',  53 /
+      DATA SPCNAMES( 54), SPC1RX( 54)  / 'OLTP            ',  54 /
+      DATA SPCNAMES( 55), SPC1RX( 55)  / 'OLI             ',  55 /
+      DATA SPCNAMES( 56), SPC1RX( 56)  / 'OLIP            ',  56 /
+      DATA SPCNAMES( 57), SPC1RX( 57)  / 'DIEN            ',  57 /
+      DATA SPCNAMES( 58), SPC1RX( 58)  / 'ACE             ',  58 /
+      DATA SPCNAMES( 59), SPC1RX( 59)  / 'ORA1            ',  59 /
+      DATA SPCNAMES( 60), SPC1RX( 60)  / 'BENZENE         ',  60 /
+      DATA SPCNAMES( 61), SPC1RX( 61)  / 'BENP            ',  61 /
+      DATA SPCNAMES( 62), SPC1RX( 62)  / 'EPX             ',  62 /
+      DATA SPCNAMES( 63), SPC1RX( 63)  / 'PHEN            ',  63 /
+      DATA SPCNAMES( 64), SPC1RX( 64)  / 'BENZRO2         ',  64 /
+      DATA SPCNAMES( 65), SPC1RX( 65)  / 'TOL             ',  65 /
+      DATA SPCNAMES( 66), SPC1RX( 66)  / 'TR2             ',  66 /
+      DATA SPCNAMES( 67), SPC1RX( 67)  / 'TLP1            ',  67 /
+      DATA SPCNAMES( 68), SPC1RX( 68)  / 'CSL             ',  68 /
+      DATA SPCNAMES( 69), SPC1RX( 69)  / 'TOLRO2          ',  69 /
+      DATA SPCNAMES( 70), SPC1RX( 70)  / 'XYM             ',  70 /
+      DATA SPCNAMES( 71), SPC1RX( 71)  / 'XY2             ',  71 /
+      DATA SPCNAMES( 72), SPC1RX( 72)  / 'XYL1            ',  72 /
+      DATA SPCNAMES( 73), SPC1RX( 73)  / 'XYLRO2          ',  73 /
+      DATA SPCNAMES( 74), SPC1RX( 74)  / 'XYP             ',  74 /
+      DATA SPCNAMES( 75), SPC1RX( 75)  / 'XYO             ',  75 /
+      DATA SPCNAMES( 76), SPC1RX( 76)  / 'XYO2            ',  76 /
+      DATA SPCNAMES( 77), SPC1RX( 77)  / 'ISO             ',  77 /
+      DATA SPCNAMES( 78), SPC1RX( 78)  / 'ISOP            ',  78 /
+      DATA SPCNAMES( 79), SPC1RX( 79)  / 'API             ',  79 /
+      DATA SPCNAMES( 80), SPC1RX( 80)  / 'APIP            ',  80 /
+      DATA SPCNAMES( 81), SPC1RX( 81)  / 'LIM             ',  81 /
+      DATA SPCNAMES( 82), SPC1RX( 82)  / 'LIMP            ',  82 /
+      DATA SPCNAMES( 83), SPC1RX( 83)  / 'RCO3            ',  83 /
+      DATA SPCNAMES( 84), SPC1RX( 84)  / 'ACTP            ',  84 /
+      DATA SPCNAMES( 85), SPC1RX( 85)  / 'MEKP            ',  85 /
+      DATA SPCNAMES( 86), SPC1RX( 86)  / 'KETP            ',  86 /
+      DATA SPCNAMES( 87), SPC1RX( 87)  / 'MACRO2          ',  87 /
+      DATA SPCNAMES( 88), SPC1RX( 88)  / 'MVKP            ',  88 /
+      DATA SPCNAMES( 89), SPC1RX( 89)  / 'UALP            ',  89 /
+      DATA SPCNAMES( 90), SPC1RX( 90)  / 'DCB3            ',  90 /
+      DATA SPCNAMES( 91), SPC1RX( 91)  / 'BALP            ',  91 /
+      DATA SPCNAMES( 92), SPC1RX( 92)  / 'ADDC            ',  92 /
+      DATA SPCNAMES( 93), SPC1RX( 93)  / 'MCT             ',  93 /
+      DATA SPCNAMES( 94), SPC1RX( 94)  / 'MCTO            ',  94 /
+      DATA SPCNAMES( 95), SPC1RX( 95)  / 'MOH             ',  95 /
+      DATA SPCNAMES( 96), SPC1RX( 96)  / 'EOH             ',  96 /
+      DATA SPCNAMES( 97), SPC1RX( 97)  / 'ROH             ',  97 /
+      DATA SPCNAMES( 98), SPC1RX( 98)  / 'ETEG            ',  98 /
+      DATA SPCNAMES( 99), SPC1RX( 99)  / 'ISHPA           ',  99 /
+      DATA SPCNAMES(100), SPC1RX(100)  / 'IEPOXA          ', 100 /
+      DATA SPCNAMES(101), SPC1RX(101)  / 'IEPOXB          ', 101 /
+      DATA SPCNAMES(102), SPC1RX(102)  / 'MAHP            ', 102 /
+      DATA SPCNAMES(103), SPC1RX(103)  / 'ORA2            ', 103 /
+      DATA SPCNAMES(104), SPC1RX(104)  / 'ORAP            ', 104 /
+      DATA SPCNAMES(105), SPC1RX(105)  / 'PPN             ', 105 /
+      DATA SPCNAMES(106), SPC1RX(106)  / 'MPAN            ', 106 /
+      DATA SPCNAMES(107), SPC1RX(107)  / 'IHPN            ', 107 /
+      DATA SPCNAMES(108), SPC1RX(108)  / 'IHNO            ', 108 /
+      DATA SPCNAMES(109), SPC1RX(109)  / 'INO2            ', 109 /
+      DATA SPCNAMES(110), SPC1RX(110)  / 'ICN             ', 110 /
+      DATA SPCNAMES(111), SPC1RX(111)  / 'TRPRXN          ', 111 /
+      DATA SPCNAMES(112), SPC1RX(112)  / 'PYAC            ', 112 /
+      DATA SPCNAMES(113), SPC1RX(113)  / 'MCTP            ', 113 /
+      DATA SPCNAMES(114), SPC1RX(114)  / 'OLNN            ', 114 /
+      DATA SPCNAMES(115), SPC1RX(115)  / 'OLND            ', 115 /
+      DATA SPCNAMES(116), SPC1RX(116)  / 'TOLNN           ', 116 /
+      DATA SPCNAMES(117), SPC1RX(117)  / 'TOLND           ', 117 /
+      DATA SPCNAMES(118), SPC1RX(118)  / 'ADCN            ', 118 /
+      DATA SPCNAMES(119), SPC1RX(119)  / 'TOLP            ', 119 /
+      DATA SPCNAMES(120), SPC1RX(120)  / 'PER1            ', 120 /
+      DATA SPCNAMES(121), SPC1RX(121)  / 'XYLP            ', 121 /
+      DATA SPCNAMES(122), SPC1RX(122)  / 'PER2            ', 122 /
+      DATA SPCNAMES(123), SPC1RX(123)  / 'XYOP            ', 123 /
+      DATA SPCNAMES(124), SPC1RX(124)  / 'MONIT           ', 124 /
+      DATA SPCNAMES(125), SPC1RX(125)  / 'DONIT           ', 125 /
+      DATA SPCNAMES(126), SPC1RX(126)  / 'AONIT           ', 126 /
+      DATA SPCNAMES(127), SPC1RX(127)  / 'ISOPND          ', 127 /
+      DATA SPCNAMES(128), SPC1RX(128)  / 'ISOPNB          ', 128 /
+      DATA SPCNAMES(129), SPC1RX(129)  / 'UHC             ', 129 /
+      DATA SPCNAMES(130), SPC1RX(130)  / 'DIBOO           ', 130 /
+      DATA SPCNAMES(131), SPC1RX(131)  / 'TONIT           ', 131 /
+      DATA SPCNAMES(132), SPC1RX(132)  / 'UTONIT          ', 132 /
+      DATA SPCNAMES(133), SPC1RX(133)  / 'HAC             ', 133 /
+      DATA SPCNAMES(134), SPC1RX(134)  / 'MACRN           ', 134 /
+      DATA SPCNAMES(135), SPC1RX(135)  / 'GLYC            ', 135 /
+      DATA SPCNAMES(136), SPC1RX(136)  / 'MVKN            ', 136 /
+      DATA SPCNAMES(137), SPC1RX(137)  / 'BAL1            ', 137 /
+      DATA SPCNAMES(138), SPC1RX(138)  / 'BAL2            ', 138 /
+      DATA SPCNAMES(139), SPC1RX(139)  / 'ISHPB           ', 139 /
+      DATA SPCNAMES(140), SPC1RX(140)  / 'ISHPD           ', 140 /
+      DATA SPCNAMES(141), SPC1RX(141)  / 'ISOPRXN         ', 141 /
+      DATA SPCNAMES(142), SPC1RX(142)  / 'VRP             ', 142 /
+      DATA SPCNAMES(143), SPC1RX(143)  / 'IEPOXD          ', 143 /
+      DATA SPCNAMES(144), SPC1RX(144)  / 'TONIN           ', 144 /
+      DATA SPCNAMES(145), SPC1RX(145)  / 'TONIH           ', 145 /
+      DATA SPCNAMES(146), SPC1RX(146)  / 'UTONIN          ', 146 /
+      DATA SPCNAMES(147), SPC1RX(147)  / 'HONIT           ', 147 /
+      DATA SPCNAMES(148), SPC1RX(148)  / 'IAP             ', 148 /
+      DATA SPCNAMES(149), SPC1RX(149)  / 'DHMOB           ', 149 /
+      DATA SPCNAMES(150), SPC1RX(150)  / 'UHCAP           ', 150 /
+      DATA SPCNAMES(151), SPC1RX(151)  / 'UHCP            ', 151 /
+      DATA SPCNAMES(152), SPC1RX(152)  / 'MOBA            ', 152 /
+      DATA SPCNAMES(153), SPC1RX(153)  / 'MOBAOO          ', 153 /
+      DATA SPCNAMES(154), SPC1RX(154)  / 'HPALD           ', 154 /
+      DATA SPCNAMES(155), SPC1RX(155)  / 'ISOPNBO2        ', 155 /
+      DATA SPCNAMES(156), SPC1RX(156)  / 'ISOPNDO2        ', 156 /
+      DATA SPCNAMES(157), SPC1RX(157)  / 'DHDN            ', 157 /
+      DATA SPCNAMES(158), SPC1RX(158)  / 'PROPNN          ', 158 /
+      DATA SPCNAMES(159), SPC1RX(159)  / 'ETHLN           ', 159 /
+      DATA SPCNAMES(160), SPC1RX(160)  / 'IMONIT          ', 160 /
+      DATA SPCNAMES(161), SPC1RX(161)  / 'ISNP            ', 161 /
+      DATA SPCNAMES(162), SPC1RX(162)  / 'IEPOXOO         ', 162 /
+      DATA SPCNAMES(163), SPC1RX(163)  / 'INO             ', 163 /
+      DATA SPCNAMES(164), SPC1RX(164)  / 'IHND            ', 164 /
+      DATA SPCNAMES(165), SPC1RX(165)  / 'IHNB            ', 165 /
+      DATA SPCNAMES(166), SPC1RX(166)  / 'INO2IN          ', 166 /
+      DATA SPCNAMES(167), SPC1RX(167)  / 'INHED           ', 167 /
+      DATA SPCNAMES(168), SPC1RX(168)  / 'NC4CO3          ', 168 /
+      DATA SPCNAMES(169), SPC1RX(169)  / 'R4NO            ', 169 /
+      DATA SPCNAMES(170), SPC1RX(170)  / 'R4N             ', 170 /
+      DATA SPCNAMES(171), SPC1RX(171)  / 'IDHNO2B         ', 171 /
+      DATA SPCNAMES(172), SPC1RX(172)  / 'IDHPN           ', 172 /
+      DATA SPCNAMES(173), SPC1RX(173)  / 'IDHNO2D         ', 173 /
+      DATA SPCNAMES(174), SPC1RX(174)  / 'INPD            ', 174 /
+      DATA SPCNAMES(175), SPC1RX(175)  / 'INPB            ', 175 /
+      DATA SPCNAMES(176), SPC1RX(176)  / 'INPHO2D         ', 176 /
+      DATA SPCNAMES(177), SPC1RX(177)  / 'INHEB           ', 177 /
+      DATA SPCNAMES(178), SPC1RX(178)  / 'INPHO2B         ', 178 /
+      DATA SPCNAMES(179), SPC1RX(179)  / 'IHDPN           ', 179 /
+      DATA SPCNAMES(180), SPC1RX(180)  / 'IHNO2           ', 180 /
+      DATA SPCNAMES(181), SPC1RX(181)  / 'TOLNRXN         ', 181 /
+      DATA SPCNAMES(182), SPC1RX(182)  / 'TOLHRXN         ', 182 /
+      DATA SPCNAMES(183), SPC1RX(183)  / 'XYLNRXN         ', 183 /
+      DATA SPCNAMES(184), SPC1RX(184)  / 'XYLHRXN         ', 184 /
+      DATA SPCNAMES(185), SPC1RX(185)  / 'BNZNRXN         ', 185 /
+      DATA SPCNAMES(186), SPC1RX(186)  / 'BNZHRXN         ', 186 /
+      DATA SPCNAMES(187), SPC1RX(187)  / 'SESQ            ', 187 /
+      DATA SPCNAMES(188), SPC1RX(188)  / 'SESQRXN         ', 188 /
+      DATA SPCNAMES(189), SPC1RX(189)  / 'NAPH            ', 189 /
+      DATA SPCNAMES(190), SPC1RX(190)  / 'PAHRO2          ', 190 /
+      DATA SPCNAMES(191), SPC1RX(191)  / 'PAHNRXN         ', 191 /
+      DATA SPCNAMES(192), SPC1RX(192)  / 'PAHHRXN         ', 192 /
+      DATA SPCNAMES(193), SPC1RX(193)  / 'SOAALK          ', 193 /
+      DATA SPCNAMES(194), SPC1RX(194)  / 'ALKRXN          ', 194 /
+      DATA SPCNAMES(195), SPC1RX(195)  / 'AISO3J          ', 195 /
+      DATA SPCNAMES(196), SPC1RX(196)  / 'AGLYJ           ', 196 /
+      DATA SPCNAMES(197), SPC1RX(197)  / 'AHISOPNDJ       ', 197 /
+      DATA SPCNAMES(198), SPC1RX(198)  / 'AHISOPNBJ       ', 198 /
+      DATA SPCNAMES(199), SPC1RX(199)  / 'AHMVKNJ         ', 199 /
+      DATA SPCNAMES(200), SPC1RX(200)  / 'AHMACRNJ        ', 200 /
+      DATA SPCNAMES(201), SPC1RX(201)  / 'AHDHDNJ         ', 201 /
+      DATA SPCNAMES(202), SPC1RX(202)  / 'AHIMONITJ       ', 202 /
+      DATA SPCNAMES(203), SPC1RX(203)  / 'AHUTONITJ       ', 203 /
+      DATA SPCNAMES(204), SPC1RX(204)  / 'AHUTONINJ       ', 204 /
+      DATA SPCNAMES(205), SPC1RX(205)  / 'AHTONITJ        ', 205 /
+      DATA SPCNAMES(206), SPC1RX(206)  / 'AHTONINJ        ', 206 /
+      DATA SPCNAMES(207), SPC1RX(207)  / 'AHTONIHJ        ', 207 /
+      DATA SPCNAMES(208), SPC1RX(208)  / 'AHHONITJ        ', 208 /
+      DATA SPCNAMES(209), SPC1RX(209)  / 'AHINHEJ         ', 209 /
+      DATA SPCNAMES(210), SPC1RX(210)  / 'AHIHPNJ         ', 210 /
+      DATA SPCNAMES(211), SPC1RX(211)  / 'AHIHDPNJ        ', 211 /
+      DATA SPCNAMES(212), SPC1RX(212)  / 'AHIDHPNJ        ', 212 /
+      DATA SPCNAMES(213), SPC1RX(213)  / 'AHR4NJ          ', 213 /
+      DATA SPCNAMES(214), SPC1RX(214)  / 'AHR4NOJ         ', 214 /
+      DATA SPCNAMES(215), SPC1RX(215)  / 'AHINPDJ         ', 215 /
+      DATA SPCNAMES(216), SPC1RX(216)  / 'AHINPBJ         ', 216 /
+      DATA SPCNAMES(217), SPC1RX(217)  / 'AHIHNDJ         ', 217 /
+      DATA SPCNAMES(218), SPC1RX(218)  / 'AHIHNBJ         ', 218 /
+      DATA SPCNAMES(219), SPC1RX(219)  / 'AHISNPJ         ', 219 /
+      DATA SPCNAMES(220), SPC1RX(220)  / 'AHMTHYJ         ', 220 /
+      DATA SPCNAMES(221), SPC1RX(221)  / 'AISOPNDJ        ', 221 /
+      DATA SPCNAMES(222), SPC1RX(222)  / 'AMTHYDJ         ', 222 /
+      DATA SPCNAMES(223), SPC1RX(223)  / 'AIHNDJ          ', 223 /
+      DATA SPCNAMES(224), SPC1RX(224)  / 'AINPDJ          ', 224 /
+      DATA SPCNAMES(225), SPC1RX(225)  / 'AISOPNBJ        ', 225 /
+      DATA SPCNAMES(226), SPC1RX(226)  / 'AINPBJ          ', 226 /
+      DATA SPCNAMES(227), SPC1RX(227)  / 'AIHNBJ          ', 227 /
+      DATA SPCNAMES(228), SPC1RX(228)  / 'AMVKNJ          ', 228 /
+      DATA SPCNAMES(229), SPC1RX(229)  / 'AMACRNJ         ', 229 /
+      DATA SPCNAMES(230), SPC1RX(230)  / 'ADHDNJ          ', 230 /
+      DATA SPCNAMES(231), SPC1RX(231)  / 'AIMONITJ        ', 231 /
+      DATA SPCNAMES(232), SPC1RX(232)  / 'AUTONITJ        ', 232 /
+      DATA SPCNAMES(233), SPC1RX(233)  / 'AUTONINJ        ', 233 /
+      DATA SPCNAMES(234), SPC1RX(234)  / 'ATONITJ         ', 234 /
+      DATA SPCNAMES(235), SPC1RX(235)  / 'ATONINJ         ', 235 /
+      DATA SPCNAMES(236), SPC1RX(236)  / 'ATONIHJ         ', 236 /
+      DATA SPCNAMES(237), SPC1RX(237)  / 'AHONITJ         ', 237 /
+      DATA SPCNAMES(238), SPC1RX(238)  / 'AIHPNJ          ', 238 /
+      DATA SPCNAMES(239), SPC1RX(239)  / 'AIHDPNJ         ', 239 /
+      DATA SPCNAMES(240), SPC1RX(240)  / 'AIDHPNJ         ', 240 /
+      DATA SPCNAMES(241), SPC1RX(241)  / 'AR4NJ           ', 241 /
+      DATA SPCNAMES(242), SPC1RX(242)  / 'AR4NOJ          ', 242 /
+      DATA SPCNAMES(243), SPC1RX(243)  / 'AISNPJ          ', 243 /
+      DATA SPCNAMES(244), SPC1RX(244)  / 'AINHEJ          ', 244 /
+      DATA SPCNAMES(245), SPC1RX(245)  / 'AXYL1J          ', 245 /
+      DATA SPCNAMES(246), SPC1RX(246)  / 'AOLGAJ          ', 246 /
+      DATA SPCNAMES(247), SPC1RX(247)  / 'AXYL2J          ', 247 /
+      DATA SPCNAMES(248), SPC1RX(248)  / 'ATOL1J          ', 248 /
+      DATA SPCNAMES(249), SPC1RX(249)  / 'ATOL2J          ', 249 /
+      DATA SPCNAMES(250), SPC1RX(250)  / 'ABNZ1J          ', 250 /
+      DATA SPCNAMES(251), SPC1RX(251)  / 'ABNZ2J          ', 251 /
+      DATA SPCNAMES(252), SPC1RX(252)  / 'ATRP1J          ', 252 /
+      DATA SPCNAMES(253), SPC1RX(253)  / 'AOLGBJ          ', 253 /
+      DATA SPCNAMES(254), SPC1RX(254)  / 'ATRP2J          ', 254 /
+      DATA SPCNAMES(255), SPC1RX(255)  / 'AISO1J          ', 255 /
+      DATA SPCNAMES(256), SPC1RX(256)  / 'AISO2J          ', 256 /
+      DATA SPCNAMES(257), SPC1RX(257)  / 'ASQTJ           ', 257 /
+      DATA SPCNAMES(258), SPC1RX(258)  / 'APAH1J          ', 258 /
+      DATA SPCNAMES(259), SPC1RX(259)  / 'APAH2J          ', 259 /
+      DATA SPCNAMES(260), SPC1RX(260)  / 'AALK1J          ', 260 /
+      DATA SPCNAMES(261), SPC1RX(261)  / 'AALK2J          ', 261 /
+      DATA SPCNAMES(262), SPC1RX(262)  / 'PCVOC           ', 262 /
+      DATA SPCNAMES(263), SPC1RX(263)  / 'PCSOARXN        ', 263 /
+      DATA SPCNAMES(264), SPC1RX(264)  / 'VLVPO1          ', 264 /
+      DATA SPCNAMES(265), SPC1RX(265)  / 'VSVPO1          ', 265 /
+      DATA SPCNAMES(266), SPC1RX(266)  / 'VSVPO2          ', 266 /
+      DATA SPCNAMES(267), SPC1RX(267)  / 'VSVPO3          ', 267 /
+      DATA SPCNAMES(268), SPC1RX(268)  / 'VIVPO1          ', 268 /
+      DATA SPCNAMES(269), SPC1RX(269)  / 'VLVOO1          ', 269 /
+      DATA SPCNAMES(270), SPC1RX(270)  / 'VLVOO2          ', 270 /
+      DATA SPCNAMES(271), SPC1RX(271)  / 'VSVOO2          ', 271 /
+      DATA SPCNAMES(272), SPC1RX(272)  / 'VSVOO3          ', 272 /
+      DATA SPCNAMES(273), SPC1RX(273)  / 'VSVOO1          ', 273 /
+
+C End of Mechanism CTM Species intermediate INCLUDE File ------------
+
+      INTEGER, PARAMETER :: NSPCS = 273

@@ -1,0 +1,956 @@
+
+!------------------------------------------------------------------------!
+!  The Community Multiscale Air Quality (CMAQ) system software is in     !
+!  continuous development by various groups and is based on information  !
+!  from these groups: Federal Government employees, contractors working  !
+!  within a United States Government contract, and non-Federal sources   !
+!  including research institutions.  These groups give the Government    !
+!  permission to use, prepare derivative works of, and distribute copies !
+!  of their work in the CMAQ system to the public and to permit others   !
+!  to do so.  The United States Environmental Protection Agency          !
+!  therefore grants similar permission to use the CMAQ system software,  !
+!  but users are requested to provide copies of derivative works or      !
+!  products designed to operate in the CMAQ system to the United States  !
+!  Government without restrictions as to use by others.  Software        !
+!  that is used with the CMAQ system but distributed under the GNU       !
+!  General Public License or the GNU Lesser General Public License is    !
+!  subject to their copyright restrictions.                              !
+!------------------------------------------------------------------------!
+
+! RCS file, release, date & time of last delta, author, state, [and locker]
+! $Header: /project/work/rep/arc/CCTM/src/cloud/cloud_acm_ae6/aqchem.F,v 1.6 2012/03/19 15:43:49 yoj Exp $
+!
+! what(1) key, module and SID; SCCS file; date and time of last delta:
+! %W% %P% %G% %U%
+
+!:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+      SUBROUTINE AQCHEM ( JDATE, JTIME, TEMP2, PRES_PA, TAUCLD, PRCRATE,   &
+                          WCAVG, WTAVG, AIRM, ALFA0, ALFA2, ALFA3, GAS,    &
+                          AEROSOL, GASWDEP, AERWDEP, HPWDEP, BETASO4, DARK )      
+!-----------------------------------------------------------------------
+!  Description:
+!    Compute concentration changes in cloud due to aqueous chemistry,
+!    scavenging and wet deposition amounts.  This is the "KMT" version
+!    of AQCHEM, which includes the treatment of kinetic mass transfer 
+!    between the gas and aqueous phases and the implementation of the 
+!    RODAS3 solver to simultaneously integrate phase transfer, scavenging, 
+!    deposition, dissociation, and chemical kinetic processes. 
+!    The additional subroutines of "AQCHEM-KMT" used in the integration of 
+!    the system of aqueous ODEs were generated using the Kinetic 
+!    PreProcessor, version 2.2.3 (Damian et al., 2002).
+!
+!  Revision History:
+!      No   Date   Who  What
+!      -- -------- ---  -----------------------------------------
+!      0  / /86    CW   BEGIN PROGRAM - Walceks's Original Code
+!      1  / /86    RB   INCORPORATE INTO RADM
+!      2  03/23/87 DH   REFORMAT
+!      3  04/11/88 SJR  STREAMLINED CODE - ADDED COMMENTS
+!      4  08/27/88 SJR  COMMENTS, MODIFIED FOR RPM
+!      4a 03/15/96 FSB  Scanned hard copy to develop Models3
+!                       Version.
+!      5  04/24/96 FSB  Made into Models3 Format
+!      6  02/18/97 SJR  Revisions to link with Models3
+!      7  08/12/97 SJR  Revised for new concentration units (moles/mole)
+!                       and new treatment of nitrate and nitric acid
+!      8  01/15/98 sjr  revised to add new aitken mode scavenging
+!                       and aerosol number scavenging
+!      9  12/15/98 David Wong at LM:
+!             -- change division of XL, TEMP to multiplication of XL, TEMP
+!                reciprocal, respectively
+!             -- change / TOTOX / TSIV to / ( TOTOX * TSIV )
+!     10  03/18/99 David Wong at LM:
+!             -- removed "* 1.0" redundant calculation at TEMP1 calculation
+!     11  04/27/00 sjr  Added aerosol surface area as modeled species
+!     12  12/02    sjr  changed calls to HLCONST and updated the dissociation
+!                       constants
+!     13  06/26/03 sjr  revised calculations of DTW based on CMAS website
+!                       discussions
+!     14  08/05/03 sjr  revision made to the coarse aerosol number washout
+!     15  04/20/05  us  revisions to add sea salt species in the fine and
+!                       coarse aerosol modes, and HCl dissolution/dissociation
+!     16  10/13/05 sjr  fixed bug in the integration time step calculation
+!                       (reported by Bonyoung Koo)
+!     17  03/01/06 sjr  added elemental carbon aerosol; organic aerosols
+!                       replaced with primary, secondary biogenic, and
+!                       secondary anthropogenic; fixed 3rd moment calc to
+!                       include EC and primary organics (not secondary);
+!                       re-arranged logic for setting Cl & Na ending conc;
+!                       added pointers/indirect addressing for arrays WETDEP
+!                       and LIQUID
+!     16  03/30/07 sjr  Limit integration timestep by cloud washout time
+!     17  04/10/07 sjr  increased loop limits as follows: I20C <10000,
+!                       I7777C <10000, I30C <10000, ICNTAQ <60000
+!     18  01/10/07 agc  added organic chemistry for GLY and MGLY oxidation
+!     19  09/10/07 sln  updated SOA species list for AE5
+!     20  01/29/08 agc  updated DOHDT calculation
+!     21  04/14/08 jtk  added coding for coarse NH4 and scavenging of
+!                       coarse surface area
+!     22  05/20/08 agc  for CB05, use the Henry's Law constant for glyoxal
+!                       as a surrogate for methyl glyoxal
+!     23  04/15/09 sjr& Several changes made to improve mass conservation in the
+!                  agc  solver.  (1) OH concentration is now considered to be
+!                       steady state; (2) only allow sulfur oxidation to affect
+!                       time step; (3) implemented mass conservation checks -
+!                       limit oxidation rates by the available mass for the
+!                       specified timestep.
+!   10 Oct 10 J.Young:  update to use aero_reeng by Steve Howard, Prakash Bhave,
+!                       Jeff Young, Sergey Napelenok, and Shawn Roselle
+!   01 Mar 11 S.Roselle: replaced I/O API include files with UTILIO_DEFN
+!    9 Mar 11 S.Napelenok: update for AE6 - pH calculation now expanded to 
+!                       include Ca Mg K SOIL CORS SEAS
+!   23 May 11 G.Sarwar: update S(VI) production rate via H2O2, O3, MHP, PAA 
+!                       pathways (Jacobson 1997)
+!   23 May 11 G.Sarwar: update S(VI) production rate via O2 pathway (metal 
+!                       catalysis) (Martin and Goodman, 1991)
+!   01 Jul 11 G.Sarwar: Incorporate day and night dependent Fe III oxidation
+!                       state (Alexander et al.,  2009)
+!   12 Aug 11 G.Sarwar: Revise Fe and Mn solubility based on 
+!                       Alexander et al., 2009
+!    8 Mar 12 J.Bash:   FE_OX and MN_OX were calculated from FE and MN before
+!                       a floor value of 0.0 was established for these 
+!                       concentrations sometimes resulting in negative 
+!                       concentrations and model crashes. The code used to 
+!                       estimate FE_OX and MN_OX was moved to be after a floor 
+!                       value for FE and MN was set. Also the washout rate was
+!                       removed from the calculation of the estimate for doubling
+!                       the time step based on sulfur oxidized < 5%.
+!   28 Nov 12 G.Sarwar: Sulfate inhibition effect is implemented in the metal catalysis pathway
+!   04 Mar 14 K. Fahey: Used the Kinetic PreProcessor to generate the RODAS3 solver
+!                       for the CMAQ aqueous phase chemistry mechanism (Damian et al., 2002). 
+!                       Aitken scavenging, mass transfer between the phases, dissociation, 
+!                       chemical kinetics, and wet deposition are solved dynamically 
+!                       and simultaneously.  The mass transfer between the phases is
+!                       based on the resistance model of Schwartz (Schwartz, 1986). The SIV-O3
+!                       oxidation reaction has been corrected for potential aqueous 
+!                       diffusion limitations.
+!  07 Jul 14 B.Hutzell: replaced mechanism include file(s) with fortran module
+!  03 May 16 K.Fahey  : Added back usage of hlconst function to calculate Henry's law
+!                       coefficients (rather than calculating in mass transfer coefficient 
+!                       function); updated to use AERO_DATA constants in calculation of 
+!                       coarse cations following J. Young updates in AQCHEM.F
+!
+!  References:
+!     Walcek & Taylor, 1986, A theoretical Method for computing
+!        vertical distributions of acidity and sulfate within cumulus
+!        clouds, J. Atmos Sci.,  Vol. 43, no. 4 pp 339 - 355
+!     Carlton, A.G., B.J. Turpin, K.E. Altieri, S.P. Seitzinger, R. Mathur,
+!        S.J. Roselle, and R.J. Weber, CMAQ Model Performance Enhanced When
+!        In-Cloud Secondary Organic Aerosol is Included:  Comparison of Organic
+!        Carbon Predictions with Measurements, Environ. Sci. Technol., 42(23),
+!        8798-8802, 2008.
+!     Jacobson, M., Development and application of a new air pollution modeling 
+!        system II. Aerosol module structure and design, Atmospheric 
+!        Environment, 31, 131-144, 1997
+!     Martin, R.L. and T.W. Good, catalyzed oxidation of sulfur dioxide in 
+!        solution: the iron-manganese synergism, Atmospheric Environment, 25A, 
+!        2395-2399, 1991
+!     Alexander, B., R.J. Park, D.J. Jacob, S. Gong, Transition metal-catalyzed  
+!        oxidation of atmospheric sulfur: global implications for the sulfur
+!        budget, GRL, 114, D02309, 2009
+!     Damian, V., A. Sandu, M. Damian, F. Potra, and G.R. Carmichael, The Kinetic 
+!        PreProcessor KPP -- A Software Environment for Solving Chemical Kinetics,
+!        Computers and Chemical Engineering, 26(11), 1567-1579, 2002.
+!     Schwartz, S.E., Mass transport considerations pertinent to aqueous-phase
+!        reactions of gases in liquid water clouds. In Chemistry of multiphase
+!        atmospheric systems, NATO ASI Series, G6, 415-471, 1986. 
+!
+!  Called by:  AQMAP
+!
+!  Calls the following subroutines:  Initialize, Update_RCONST, INTEGRATE
+!
+!  Calls the following functions: none
+!-----------------------------------------------------------------------
+
+      USE RXNS_DATA           ! chemical mechanism data
+      USE AQ_DATA
+      USE AERO_DATA
+      USE UTILIO_DEFN
+   
+      USE aqchem_Model
+      USE aqchem_Initialize, ONLY: Initialize  
+
+      IMPLICIT NONE
+      
+
+      CHARACTER( 120 ) :: XMSG = ' '  ! Exit status message
+
+!..........Parameters:
+
+!...........Arguments:
+
+      INTEGER,   INTENT( IN )  :: JDATE                     ! current model date, coded YYYYDDD
+      INTEGER,   INTENT( IN )  :: JTIME                     ! current model time, coded HHMMSS
+
+      REAL,      INTENT( IN )  :: AIRM                      ! total air mass in cloudy layers (mol/m2)
+      REAL,      INTENT( IN )  :: ALFA0                     ! scav coef for aitken aerosol number
+      REAL,      INTENT( IN )  :: ALFA2                     ! scav coef for aitken aerosol sfc area
+      REAL,      INTENT( IN )  :: ALFA3                     ! scav coef for aitken aerosol mass
+      REAL,      INTENT( OUT ) :: HPWDEP                    ! hydrogen wet deposition (mm mol/liter)
+      REAL( 8 ), INTENT( OUT ) :: BETASO4  
+      REAL,      INTENT( IN )  :: PRCRATE                   ! precip rate (mm/hr)
+      REAL,      INTENT( IN )  :: PRES_PA                   ! pressure (Pa)
+      REAL,      INTENT( IN )  :: TAUCLD                    ! timestep for cloud (s)
+      REAL,      INTENT( IN )  :: TEMP2                     ! temperature (K)
+      REAL,      INTENT( IN )  :: WCAVG                     ! liquid water content (kg/m3)
+      REAL,      INTENT( IN )  :: WTAVG                     ! total water content (kg/m3)
+      LOGICAL,   INTENT( IN )  :: DARK                      ! DARK = TRUE is night,  DARK = FALSE is day     
+!      REAL( 8 ), INTENT( INOUT ) :: GAS    ( NGAS )         ! gas phase concentrations (mol/molV)
+!      REAL( 8 ), INTENT( INOUT ) :: AEROSOL( NAER, NMODES ) ! aerosol concentrations (mol/molV)
+!      REAL( 8 ), INTENT( INOUT ) :: GASWDEP( NGAS )         ! gas phase wet deposition array (mm mol/liter)
+!      REAL( 8 ), INTENT( INOUT ) :: AERWDEP( NAER, NMODES ) ! aerosol wet deposition array (mm mol/liter)
+      REAL( 8 ), INTENT( INOUT ) :: GAS    ( : )            ! gas phase concentrations (mol/molV)
+      REAL( 8 ), INTENT( INOUT ) :: AEROSOL( :,: )          ! aerosol concentrations (mol/molV)
+      REAL( 8 ), INTENT( INOUT ) :: GASWDEP( : )            ! gas phase wet deposition array (mm mol/liter)
+      REAL( 8 ), INTENT( INOUT ) :: AERWDEP( :,: )          ! aerosol wet deposition array (mm mol/liter)
+      
+      REAL( 8 ), SAVE :: SOIL_FE_FAC                        ! Fe molar fraction of ASOIL
+      REAL( 8 ), SAVE :: CORS_FE_FAC                        ! Fe molar fraction of ACORS
+      REAL( 8 ), SAVE :: SOIL_MN_FAC                        ! Mn molar fraction of ASOIL
+      REAL( 8 ), SAVE :: CORS_MN_FAC                        ! Fe molar fraction of ACORS
+      REAL( 8 ), SAVE :: SEAS_NA_FAC                        ! Na molar fraction of ASEACAT
+      REAL( 8 ), SAVE :: SOIL_NA_FAC                        ! Fe molar fraction of ASOIL
+      REAL( 8 ), SAVE :: CORS_NA_FAC                        ! Fe molar fraction of ACORS
+      REAL( 8 ), SAVE :: SEAS_MG_FAC                        ! Na molar fraction of ASEACAT
+      REAL( 8 ), SAVE :: SOIL_MG_FAC                        ! Fe molar fraction of ASOIL
+      REAL( 8 ), SAVE :: CORS_MG_FAC                        ! Fe molar fraction of ACORS
+      REAL( 8 ), SAVE :: SEAS_CA_FAC                        ! Na molar fraction of ASEACAT
+      REAL( 8 ), SAVE :: SOIL_CA_FAC                        ! Fe molar fraction of ASOIL
+      REAL( 8 ), SAVE :: CORS_CA_FAC                        ! Fe molar fraction of ACORS
+      REAL( 8 ), SAVE :: SEAS_K_FAC                         ! Na molar fraction of ASEACAT
+      REAL( 8 ), SAVE :: SOIL_K_FAC                         ! Fe molar fraction of ASOIL
+      REAL( 8 ), SAVE :: CORS_K_FAC                         ! Fe molar fraction of ACORS      
+
+!...........Local Variables (scalars):
+
+      LOGICAL, SAVE :: FIRSTIME = .TRUE. ! flag for first pass thru
+
+      CHARACTER( 16 ), SAVE :: PNAME = 'AQCHEM'             ! Driver program name
+      CHARACTER( 16 ), SAVE :: MGLYSUR = 'METHYL_GLYOXAL  ' ! Henry's law surrogate for MGLY
+      
+      REAL( 8 ) :: CTHK1                                    ! Cloud thickness (m)
+      REAL( 8 ) :: ONE_OVER_TEMP                            ! 1 / Temperature (1/K)
+      REAL( 8 ) :: WFACTOR                                  ! Convert dyn wet dep values to mm mol / L 
+      REAL( 8 ) :: INVCFAC                                  ! Conversion: molec/cm3 air --> mol/mol
+      REAL( 8 ) :: DEPSUM                                   ! SO4 deposition, used to calculate SO4 scav coefficient
+      REAL( 8 ) :: EXPWET                                   ! EXP( -WETFAC_KPP * TAUCLD )
+      
+      REAL( 8 ) :: TOTNIT, TOTAMM, TOTCL                    ! Total nitrate, ammonium, and chloride (excluding coarse mode)
+      REAL( 8 ) :: FNH3, FNH4ACC                            ! Initial fraction NH3 gas of TOTAMM, fraction acc mode of aerosol NH4
+      REAL( 8 ) :: FHNO3, FNO3ACC                           ! Initial fraction HNO3 gas of TOTNIT, fraction acc mode of aerosol NO3
+      REAL( 8 ) :: FHCL, FCLACC                             ! Initial fraction HCl gas of TOTCL, fraction acc mode of aerosol CL
+      REAL( 8 ) :: FINHED                                   ! Initial fraction of INHED in INHED+INHEB
+      
+      REAL( 8 ) :: NACOR, CACOR, MGCOR, KCOR, FECOR, MNCOR                ! Coarse crustal cation concentrations
+      REAL( 8 ) :: WDNACOR, WDCACOR, WDMGCOR, WDKCOR, WDFECOR, WDMNCOR    ! Coarse crustal cation wet deposition
+
+
+      REAL(kind=dp) :: T, DVAL(NSPEC)                       ! KPP integrator variables
+      REAL(kind=dp) :: RSTATE(20)                           ! KPP integrator variables
+
+      INTEGER :: I, IGAS, IAER, IMOD, count, J
+
+!...........External Functions:
+
+      REAL, EXTERNAL :: HLCONST
+
+      INTEGER, SAVE :: LOGDEV
+      INTEGER, EXTERNAL :: SETUP_LOGDEV
+
+!*********************************************************************
+
+!...Initialization
+
+      IF ( FIRSTIME ) THEN
+
+         FIRSTIME = .FALSE.
+
+         LOGDEV = SETUP_LOGDEV()
+
+!...Make sure an AE6 version of the mechanism is being used
+
+         IF ( INDEX ( MECHNAME, 'AE6' ) .LE. 0 ) THEN
+            XMSG = 'This version of AQCHEM requires an AE6 chemical mechanism'
+            CALL M3EXIT ( PNAME, JDATE, JTIME, XMSG, XSTAT3 )
+         END IF
+
+!...Special treatment of MGLY for CB05 mechanism:
+!...Use Henry's law constant for glyoxal as a surrogate for methyl glyoxal
+
+         IF ( INDEX ( MECHNAME, 'CB05' ) .GT. 0 ) THEN
+            MGLYSUR = 'GLYOXAL         '
+         END IF
+
+!... set MW ratios and speciation factors for molar concentrations of coarse
+!... soluble aerosols
+
+        SOIL_FE_FAC = ASOIL_FE_FAC * REAL( AEROSPC_MW( ASOIL_IDX ), 8 )  &
+                                  / REAL( AEROSPC_MW( AFE_IDX ), 8 ) / ASOIL_RENORM
+        CORS_FE_FAC = ACORS_FE_FAC * REAL( AEROSPC_MW( ACORS_IDX ), 8 )  &
+                                  / REAL( AEROSPC_MW( AFE_IDX ), 8 ) / ACORS_RENORM
+
+        SOIL_MN_FAC = ASOIL_MN_FAC * REAL( AEROSPC_MW( ASOIL_IDX ), 8 )  &
+                                  / REAL( AEROSPC_MW( AMN_IDX ), 8 ) / ASOIL_RENORM
+        CORS_MN_FAC = ACORS_MN_FAC * REAL( AEROSPC_MW( ACORS_IDX ), 8 )  &
+                                  / REAL( AEROSPC_MW( AMN_IDX ), 8 ) / ACORS_RENORM
+
+        SEAS_NA_FAC = ASCAT_NA_FAC * REAL( AEROSPC_MW( ASEACAT_IDX ), 8 )  &
+                                  / REAL( AEROSPC_MW( ANA_IDX ), 8 )
+        SOIL_NA_FAC = ASOIL_NA_FAC * REAL( AEROSPC_MW( ASOIL_IDX ), 8 )  &
+                                  / REAL( AEROSPC_MW( ANA_IDX ), 8 ) / ASOIL_RENORM
+        CORS_NA_FAC = ACORS_NA_FAC * REAL( AEROSPC_MW( ACORS_IDX ), 8 )  &
+                                  / REAL( AEROSPC_MW( ANA_IDX ), 8 ) / ACORS_RENORM
+
+        SEAS_MG_FAC = ASCAT_MG_FAC * REAL( AEROSPC_MW( ASEACAT_IDX ), 8 )  &
+                                  / REAL( AEROSPC_MW( AMG_IDX ), 8 )
+        SOIL_MG_FAC = ASOIL_MG_FAC * REAL( AEROSPC_MW( ASOIL_IDX ), 8 )  &
+                                  / REAL( AEROSPC_MW( AMG_IDX ), 8 ) / ASOIL_RENORM
+        CORS_MG_FAC = ACORS_MG_FAC * REAL( AEROSPC_MW( ACORS_IDX ), 8 )  &
+                                  / REAL( AEROSPC_MW( AMG_IDX ), 8 ) / ACORS_RENORM
+
+        SEAS_CA_FAC = ASCAT_CA_FAC * REAL( AEROSPC_MW( ASEACAT_IDX ), 8 )  &
+                                  / REAL( AEROSPC_MW( ACA_IDX ), 8 )
+        SOIL_CA_FAC = ASOIL_CA_FAC * REAL( AEROSPC_MW( ASOIL_IDX ), 8 )  &
+                                  / REAL( AEROSPC_MW( ACA_IDX ), 8 ) / ASOIL_RENORM
+        CORS_CA_FAC = ACORS_CA_FAC * REAL( AEROSPC_MW( ACORS_IDX ), 8 )  &
+                                  / REAL( AEROSPC_MW( ACA_IDX ), 8 ) / ACORS_RENORM
+
+        SEAS_K_FAC = ASCAT_K_FAC * REAL( AEROSPC_MW( ASEACAT_IDX ), 8 )  &
+                                  / REAL( AEROSPC_MW( AK_IDX ), 8 )
+        SOIL_K_FAC = ASOIL_K_FAC * REAL( AEROSPC_MW( ASOIL_IDX ), 8 )  &
+                                  / REAL( AEROSPC_MW( AK_IDX ), 8 ) / ASOIL_RENORM
+        CORS_K_FAC = ACORS_K_FAC * REAL( AEROSPC_MW( ACORS_IDX ), 8 )  &
+                                  / REAL( AEROSPC_MW( AK_IDX ), 8 ) / ACORS_RENORM 
+      
+      END IF    ! FIRSTIME
+
+#ifdef verbose_aqchem
+
+      Write( logdev, * ) "AQCHEM VERBOSE IN"
+      Write( logdev, * ) TEMP2, PRES_PA, TAUCLD
+      Write( logdev, * ) PRCRATE, WCAVG, WTAVG 
+      Write( logdev, * ) AIRM, ALFA0, ALFA2, ALFA3
+      Write( logdev, * ) "GAS"
+      Write( logdev, * ) GAS
+      Write( logdev, * ) "N, GAS (NGAS)"
+      DO I = 1,NGAS
+      Write( logdev, * ) I, GAS(I)
+      ENDDO
+      Write( logdev, * ) "AEROSOL"
+      Write( logdev, * ) AEROSOL
+      Write( logdev, * ) "spc, mode, AEROSOL(NAER,NMOD)"
+      DO J=1, 3
+      DO I=1, NAER
+      Write( logdev, * ) I, J, AEROSOL(I,J)
+      ENDDO
+      ENDDO
+      Write( logdev, * ) "DARK"
+      Write( logdev, * ) DARK
+			  
+      Write( logdev, * ) "asoil_fe_fac = ", ASOIL_FE_FAC
+      Write( logdev, * ) "MW SOIL = ", AEROSPC_MW( ASOIL_IDX )
+      Write( logdev, * ) "MW FE = ", AEROSPC_MW( AFE_IDX )
+      Write( logdev, * ) "asoil_renorm = ", ASOIL_RENORM
+
+      Write( logdev, * ) "lso2 = ", lso2     ! Sulfur Dioxide
+      Write( logdev, * ) "lhno3 = ", lhno3    ! Nitric Acid
+      Write( logdev, * ) "ln2o5 = ", ln2o5    ! Dinitrogen Pentoxide
+      Write( logdev, * ) "lco2 = ", lco2     ! Carbon Dioxide
+      Write( logdev, * ) "lnh3 = ", lnh3     ! Ammonia
+      Write( logdev, * ) "lh2o2 = ", lh2o2    ! Hydrogen Perioxide
+      Write( logdev, * ) "lo3 = ", lo3      ! Ozone
+      Write( logdev, * ) "lfoa = ", lfoa     ! Formic Acid
+      Write( logdev, * ) "lmhp = ", lmhp     ! Methyl Hydrogen Peroxide
+      Write( logdev, * ) "lpaa = ", lpaa     ! Peroxyacidic Acid
+      Write( logdev, * ) "lh2so4 = ", lh2so4   ! Sulfuric Acid
+      Write( logdev, * ) "lhcl = ", lhcl     ! Hydrogen Chloride
+      Write( logdev, * ) "lgly = ", lgly     ! Glyoxal
+      Write( logdev, * ) "lmgly = ", lmgly    ! Methylglyoxal
+      Write( logdev, * ) "lho = ", lho      ! OH, hydroxyl radical
+      Write( logdev, * ) "lisopnd = ", LISOPND  
+      Write( logdev, * ) "lisopnb = ", LISOPNB  
+      Write( logdev, * ) "lmvkn = ", LMVKN    
+      Write( logdev, * ) "lmacrn = ", LMACRN   
+      Write( logdev, * ) "ldhdn = ", LDHDN    
+      Write( logdev, * ) "limonit = ", LIMONIT
+      Write( logdev, * ) "lutonit = ", LUTONIT
+      Write( logdev, * ) "lutonin = ", LUTONIN
+      Write( logdev, * ) "ltonit = ", LTONIT
+      Write( logdev, * ) "ltonin = ", LTONIN 
+      Write( logdev, * ) "ltonih = ", LTONIH 
+      Write( logdev, * ) "lhonit = ", LHONIT 
+      Write( logdev, * ) "linhed = ", LINHED 
+      Write( logdev, * ) "linheb = ", LINHEB
+      Write( logdev, * ) "lihpn = ", LIHPN  
+      Write( logdev, * ) "lihdpn = ", LIHDPN
+      Write( logdev, * ) "lidhpn = ", LIDHPN 
+      Write( logdev, * ) "lr4n = ", LR4N 
+      Write( logdev, * ) "lr4no = ", LR4NO
+      Write( logdev, * ) "linpd = ", LINPD
+      Write( logdev, * ) "linpb = ", LINPB 
+      Write( logdev, * ) "lihnd = ", LIHND 
+      Write( logdev, * ) "lihnb = ", LIHNB 
+      Write( logdev, * ) "lisnp = ", LISNP 
+      
+               
+      Write( logdev, * ) "lso4 = ", lso4     !  Sulfate
+      Write( logdev, * ) "lnh4 = ", lnh4     !  Ammonium
+      Write( logdev, * ) "lno3 = ", lno3     !  Nitrate
+      Write( logdev, * ) "lsoa = ", lsoa     !  SOA
+      Write( logdev, * ) "lorgc = ", lorgc    !  SOA (anthropogenic organic oligomers)
+      Write( logdev, * ) "lpoa = ", lpoa     !  Primary organic aerosol
+      Write( logdev, * ) "lec = ", lec      !  Elemental carbon
+      Write( logdev, * ) "lpri = ", lpri     !  Primary aerosol (Aitken and Accumulation)
+      Write( logdev, * ) "lna = ", lna      !  Sodium
+      Write( logdev, * ) "lcl = ", lcl      !  Chloride ion
+      Write( logdev, * ) "lnum = ", lnum     !  Number
+      Write( logdev, * ) "lsrf = ", lsrf     !  Surface area
+      Write( logdev, * ) "lcaacc = ", lcaacc   !  Ca in Accumulation mode (AE6) SLN 16March2011
+      Write( logdev, * ) "lmgacc = ", lmgacc   !  Mg in Accumulation mode (AE6) SLN 16March2011
+      Write( logdev, * ) "lkacc = ", lkacc    !  K in Accumulation mode (AE6)  SLN 16March2011
+      Write( logdev, * ) "lfeacc = ", lfeacc   !  Fe in Accumulation mode (AE6) SLN 22March2011
+      Write( logdev, * ) "lmnacc = ", lmnacc   !  Mn in Accumulation mode (AE6) SLN 22March2011
+      Write( logdev, * ) "lsoilc = ", lsoilc   !  SOIL in Coarse mode (AE6)     SLN 16March2011
+      Write( logdev, * ) "lanthc = ", lanthc   !  CORS in Coarse mode (AE6)     SLN 16March2011
+      Write( logdev, * ) "lseasc = ", lseasc   !  SEAS in Coarse mode (AE6)     SLN 16March2011  
+      
+      Write( logdev, * ) "lcisopnd = ", LCISOPND
+      Write( logdev, * ) "lcisopnb = ", LCISOPNB 
+      Write( logdev, * ) "lcmvkn = ", LCMVKN 
+      Write( logdev, * ) "lcmacrn = ", LCMACRN
+      Write( logdev, * ) "lcdhdn = ", LCDHDN 
+      Write( logdev, * ) "lcimonit = ", LCIMONIT
+      Write( logdev, * ) "lcutonit = ", LCUTONIT
+      Write( logdev, * ) "lcutonin = ", LCUTONIN
+      Write( logdev, * ) "lctonit = ", LCTONIT
+      Write( logdev, * ) "lctonin = ", LCTONIN
+      Write( logdev, * ) "lctonih = ", LCTONIH 
+      Write( logdev, * ) "lchonit = ", LCHONIT
+      Write( logdev, * ) "lcinhe = ", LCINHE 
+      Write( logdev, * ) "lcihpn = ", LCIHPN
+      Write( logdev, * ) "lcihdpn = ", LCIHDPN
+      Write( logdev, * ) "lcidhpn = ", LCIDHPN 
+      Write( logdev, * ) "lcr4n = ", LCR4N
+      Write( logdev, * ) "lcr4no = ", LCR4NO
+      Write( logdev, * ) "lcinpd = ", LCINPD
+      Write( logdev, * ) "lcinpb = ", LCINPB
+      Write( logdev, * ) "lcihnd = ", LCIHND
+      Write( logdev, * ) "lcihnb = ", LCIHNB
+      Write( logdev, * ) "lcisnp = ", LCISNP 
+      Write( logdev, * ) "lcmthyd = ", LCMTHYD 
+      
+
+            Write( logdev, * ) "GASWDEP"
+      Write( logdev, * ) GASWDEP
+      Write( logdev, * ) "AERWDEP"
+      Write( logdev, * ) AERWDEP
+      Write( logdev, * ) " "
+      Write( logdev, * ) " "
+      Write( logdev, * ) " END AQCHEM INPUT"
+      Write( logdev, * ) " ***********************"
+        
+#endif 
+      
+! Henry's Law coefficients from HLCONST
+
+      SO2H  = HLCONST( 'SO2             ', TEMP2, .FALSE., 0.0 )
+      CO2H  = HLCONST( 'CO2             ', TEMP2, .FALSE., 0.0 )
+      NH3H  = HLCONST( 'NH3             ', TEMP2, .FALSE., 0.0 )
+      H2O2H = HLCONST( 'H2O2            ', TEMP2, .FALSE., 0.0 )
+      O3H   = HLCONST( 'O3              ', TEMP2, .FALSE., 0.0 )
+      HCLH  = HLCONST( 'HCL             ', TEMP2, .FALSE., 0.0 )
+      HNO3H = HLCONST( 'HNO3            ', TEMP2, .FALSE., 0.0 )
+      MHPH  = HLCONST( 'METHYLHYDROPEROX', TEMP2, .FALSE., 0.0 )
+      PAAH  = HLCONST( 'PEROXYACETIC_ACI', TEMP2, .FALSE., 0.0 )
+      FOAH  = HLCONST( 'FORMIC_ACID     ', TEMP2, .FALSE., 0.0 )
+      GLYH  = HLCONST( 'GLYOXAL         ', TEMP2, .FALSE., 0.0 )
+      MGLYH = HLCONST( MGLYSUR,            TEMP2, .FALSE., 0.0 )
+      HOH   = HLCONST( 'OH              ', TEMP2, .FALSE., 0.0 )  
+      
+      ISOPNDH  = HLCONST( 'ISOPND          ', TEMP2, .FALSE., 0.0 )
+      ISOPNBH  = HLCONST( 'ISOPNB          ', TEMP2, .FALSE., 0.0 ) 
+      MVKNH    = HLCONST( 'MVKN            ', TEMP2, .FALSE., 0.0 )
+      MACRNH   = HLCONST( 'MACRN           ', TEMP2, .FALSE., 0.0 )  
+      DHDNH    = HLCONST( 'DHDN            ', TEMP2, .FALSE., 0.0 )
+      IMONITH  = HLCONST( 'IMONIT          ', TEMP2, .FALSE., 0.0 )
+      UTONITH  = HLCONST( 'UTONIT          ', TEMP2, .FALSE., 0.0 )
+      UTONINH  = HLCONST( 'UTONIN          ', TEMP2, .FALSE., 0.0 )
+      TONITH   = HLCONST( 'TONIT           ', TEMP2, .FALSE., 0.0 )
+      TONINH   = HLCONST( 'TONIN           ', TEMP2, .FALSE., 0.0 )
+      TONIHH   = HLCONST( 'TONIH           ', TEMP2, .FALSE., 0.0 )
+      HONITH   = HLCONST( 'HONIT           ', TEMP2, .FALSE., 0.0 )
+      INHEDBH  = HLCONST( 'INHE            ', TEMP2, .FALSE., 0.0 )
+      IHPNH    = HLCONST( 'IHPN            ', TEMP2, .FALSE., 0.0 )
+      IHDPNH   = HLCONST( 'IHDPN           ', TEMP2, .FALSE., 0.0 )
+      IDHPNH   = HLCONST( 'IDHPN           ', TEMP2, .FALSE., 0.0 )
+      R4NH     = HLCONST( 'R4N             ', TEMP2, .FALSE., 0.0 )
+      R4NOH    = HLCONST( 'R4NO            ', TEMP2, .FALSE., 0.0 )
+      INPDH    = HLCONST( 'INPD            ', TEMP2, .FALSE., 0.0 )
+      INPBH    = HLCONST( 'INPB            ', TEMP2, .FALSE., 0.0 )
+      IHNDH    = HLCONST( 'IHND            ', TEMP2, .FALSE., 0.0 )
+      IHNBH    = HLCONST( 'IHNB            ', TEMP2, .FALSE., 0.0 )
+      ISNPH    = HLCONST( 'ISNP            ', TEMP2, .FALSE., 0.0 )
+
+      ONE_OVER_TEMP = 1.0D0 / TEMP2
+      
+!KF      IF ( INDEX ( MGLYSUR, 'METHYL' ) .GT. 0 ) THEN
+!KF         MGLYH = 3.2D+04 
+!KF      ELSE
+!KF         MGLYH = 3.6D+05
+!KF      END IF 
+
+!...Check for bad temperature, cloud air mass, or pressure
+
+      IF ( TEMP2 .LE. 0.0D0 .OR. AIRM .LE. 0.0D0 .OR. PRES_PA .LE. 0.0D0 ) THEN
+         XMSG = 'MET DATA ERROR'
+         CALL M3EXIT ( PNAME, JDATE, JTIME, XMSG, XSTAT2 )
+      END IF
+      
+      JDATEKPP = JDATE
+      JTIMEKPP = JTIME
+
+!...Compute fractional weights for several species     
+
+      TOTNIT = GAS( LHNO3 ) + AEROSOL( LNO3, ACC )
+      IF ( TOTNIT .GT. 0.0D0 ) THEN
+         FHNO3   = GAS( LHNO3 ) / TOTNIT
+      ELSE
+         FHNO3   = 1.0D0
+      END IF
+      
+      IF ( AEROSOL( LNO3, ACC ) + AEROSOL( LNO3, COR ) .GT. 0.0D0 ) THEN
+         FNO3ACC = AEROSOL( LNO3, ACC ) / (AEROSOL( LNO3, ACC ) + AEROSOL( LNO3, COR ))  !just aerosol
+      ELSE
+         FNO3ACC = 1.d0
+      END IF
+
+      TOTAMM = GAS( LNH3 ) + AEROSOL( LNH4, ACC )
+      IF ( TOTAMM .GT. 0.0D0 ) THEN
+         FNH3    = GAS( LNH3 ) / TOTAMM
+      ELSE
+         FNH3    = 1.0D0
+      END IF
+      
+      IF ( AEROSOL( LNH4, ACC ) + AEROSOL( LNH4, COR ) .GT. 0.0D0 ) THEN      
+         FNH4ACC = AEROSOL( LNH4, ACC ) / (AEROSOL( LNH4, ACC ) + AEROSOL( LNH4, COR ))  !just aerosol
+      ELSE
+         FNH4ACC = 1.d0
+      END IF
+      
+      TOTCL = GAS( LHCL ) + AEROSOL( LCL, ACC )
+      IF ( TOTCL .GT. 0.0D0 ) THEN
+         FHCL    = GAS( LHCL ) / TOTCL
+      ELSE
+         FHCL    = 1.0D0
+      END IF
+      
+      IF ( AEROSOL( LCL, ACC ) + AEROSOL( LCL, COR ) .GT. 0.0D0 ) THEN            
+         FCLACC = AEROSOL( LCL, ACC ) / (AEROSOL( LCL, ACC ) + AEROSOL( LCL, COR ))  !just aerosol
+      ELSE
+         FCLACC = 1.d0
+      ENDIF
+      
+      FINHED = GAS( LINHED ) / (GAS( LINHED ) + GAS( LINHEB ))
+     
+!...Initialize dynamic species, rel/abs tolerances, and other specifications before calling integrator
+
+      CTHK1 = AIRM * TEMP2 * 0.08206D0 / ( PRES_PA / 101325.D0 * 1000.0D0 ) ! cloud thickness (m)
+      
+      CALL Initialize( TEMP2, PRES_PA, TAUCLD, PRCRATE,       &
+                       WCAVG, WTAVG, AIRM, ALFA0, ALFA3,      &
+                       GAS, AEROSOL, CTHK1, DARK,             &
+                       SOIL_FE_FAC, CORS_FE_FAC, SOIL_MN_FAC, &
+                       CORS_MN_FAC, SEAS_NA_FAC, SOIL_NA_FAC, &
+                       CORS_NA_FAC, SEAS_MG_FAC, SOIL_MG_FAC, &
+                       CORS_MG_FAC, SEAS_CA_FAC, SOIL_CA_FAC, &
+                       CORS_CA_FAC, SEAS_K_FAC, SOIL_K_FAC, &
+                       CORS_K_FAC )
+                   
+      INVCFAC = 1.d0 / CFACTOR
+      
+      STEPMIN = 0.0d0
+      
+!...Integrate equations describing mass transfer, scavenging, dissociation, kinetics, and deposition
+
+      T = TSTART
+kron: DO WHILE (T < TEND)
+
+         TIME = T
+
+         CALL Update_RCONST()
+
+         CALL INTEGRATE( TIN = T, TOUT = T+DT, RSTATUS_U = RSTATE, &
+            ICNTRL_U = (/ 1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 /))  ! rodas3    
+
+         T = RSTATE(1)
+
+      END DO kron
+
+      TIME = T
+
+!...Convert units and redistribute dynamic species to gas, aerosol, and deposition arrays and return
+
+      GASWDEP = 0.d0
+      AERWDEP = 0.d0
+     
+      WFACTOR = WCAVG * CTHK1 * PHI2 !Conversion factor for wet deposition species
+      EXPWET = EXP( -WETFAC_KPP * TAUCLD )
+      
+!...AEROSOL species, Aitken Mode
+
+      AEROSOL( LNO3, AKN ) = VAR( ind_A_NO3AKN ) * INVCFAC
+      AEROSOL( LNH4, AKN ) = VAR( ind_A_NH4AKN ) * INVCFAC
+      AEROSOL( LCL, AKN )  = VAR( ind_A_CLAKN ) * INVCFAC
+      AEROSOL( LNA, AKN )  = VAR( ind_A_NAAKN ) * INVCFAC
+      AEROSOL( LSO4, AKN ) = VAR( ind_A_SO4AKN ) * INVCFAC
+      AEROSOL( LEC, AKN )  = VAR( ind_A_PECAKN ) * INVCFAC
+      AEROSOL( LPOA, AKN ) = VAR( ind_A_POAAKN ) * INVCFAC
+      AEROSOL( LPRI, AKN ) = VAR( ind_A_PRIAKN ) * INVCFAC
+      AEROSOL( LNUM, AKN ) = AEROSOL( LNUM, AKN ) * EXP(-ALFA0 * TAUCLD) 
+      
+!...Simple treatment for Hg/toxic tracer species    
+
+      AEROSOL( LTRACER_AKN, AKN ) = AEROSOL( LTRACER_AKN, AKN ) * EXP(-ALFA3 * TAUCLD)  
+      AEROSOL( LPHG_AKN, AKN )    = AEROSOL( LPHG_AKN, AKN ) * EXP(-ALFA3 * TAUCLD)
+      
+      AEROSOL( LTRACER_ACC, ACC ) = AEROSOL( LTRACER_ACC, ACC ) + &
+                                    AEROSOL( LTRACER_AKN, AKN ) * (1.d0-EXP(-ALFA3 * TAUCLD))  
+      AEROSOL( LPHG_ACC, ACC )    = AEROSOL( LPHG_ACC, ACC ) + &
+                                    AEROSOL( LPHG_AKN, AKN ) * (1.d0-EXP(-ALFA3 * TAUCLD))
+				    
+      AERWDEP( LTRACER_ACC, ACC ) = AEROSOL( LTRACER_ACC,ACC ) * ( 1.d0 - EXPWET ) * CFACTOR 
+      AERWDEP( LPHG_ACC, ACC )    = AEROSOL( LPHG_ACC,ACC ) * ( 1.d0 - EXPWET ) * CFACTOR  
+      AERWDEP( LTRACER_COR, COR ) = AEROSOL( LTRACER_COR,COR ) * ( 1.d0 - EXPWET ) * CFACTOR 
+      AERWDEP( LPHG_COR, COR )    = AEROSOL( LPHG_COR,COR ) * ( 1.d0 - EXPWET ) * CFACTOR  
+      				    
+      AEROSOL( LTRACER_ACC, ACC ) = AEROSOL( LTRACER_ACC, ACC ) * EXPWET
+      AEROSOL( LPHG_ACC, ACC )    = AEROSOL( LPHG_ACC, ACC ) * EXPWET
+      
+      AEROSOL( LTRACER_COR, COR ) = AEROSOL( LTRACER_COR, COR ) * EXPWET
+      AEROSOL( LPHG_COR, COR )    = AEROSOL( LPHG_COR, COR ) * EXPWET
+      
+! As in standard "AQCHEM", the assumption is made here that final coarse mode
+! concentrations are updated due to wet deposition alone (i.e., no mass
+! change due to chemistry or phase transfer)           
+     
+!...AERWDEP species, coarse mode
+
+      AERWDEP( LSOILC, COR ) = AEROSOL( LSOILC,COR ) * ( 1.d0 - EXPWET ) * CFACTOR      
+      AERWDEP( LSEASC, COR ) = AEROSOL( LSEASC,COR ) * ( 1.d0 - EXPWET ) * CFACTOR     
+      AERWDEP( LANTHC, COR ) = AEROSOL( LANTHC,COR ) * ( 1.d0 - EXPWET ) * CFACTOR      
+      AERWDEP( LSO4, COR )   = AEROSOL( LSO4,COR ) * ( 1.d0 - EXPWET ) * CFACTOR
+      AERWDEP( LNH4, COR )   = AEROSOL( LNH4,COR ) * ( 1.d0 - EXPWET ) * CFACTOR
+      AERWDEP( LNO3, COR )   = AEROSOL( LNO3,COR ) * ( 1.d0 - EXPWET ) * CFACTOR
+      AERWDEP( LCL, COR )    = AEROSOL( LCL,COR ) * ( 1.d0 - EXPWET ) * CFACTOR
+      
+!...AEROSOL species, coarse mode 
+
+      AEROSOL( LNUM, COR )   = AEROSOL( LNUM, COR ) * EXPWET 
+      AEROSOL( LSOILC, COR ) = AEROSOL( LSOILC, COR ) * EXPWET
+      AEROSOL( LSEASC, COR ) = AEROSOL( LSEASC, COR ) * EXPWET
+      AEROSOL( LANTHC, COR ) = AEROSOL( LANTHC, COR ) * EXPWET
+      AEROSOL( LSO4, COR )   = AEROSOL( LSO4, COR ) * EXPWET
+      AEROSOL( LNH4, COR )   = AEROSOL( LNH4, COR ) * EXPWET
+      AEROSOL( LNO3, COR )   = AEROSOL( LNO3, COR ) * EXPWET
+      AEROSOL( LCL, COR )    = AEROSOL( LCL, COR ) * EXPWET      
+            
+!...AERWDEP species, accumulation mode 
+
+      AERWDEP( LSOA, ACC ) = AEROSOL( LSOA, ACC ) * ( 1 - EXPWET) * CFACTOR ! SOA is only impacted by wet dep process 
+                                                                            ! and not included in the list of dynamic 
+                                                                            ! species, VAR
+      
+      WDFECOR   = SOIL_FE_FAC * AERWDEP(LSOILC,COR)  + CORS_FE_FAC * AERWDEP(LANTHC,COR)
+      WDMNCOR   = SOIL_MN_FAC * AERWDEP(LSOILC,COR)  + CORS_MN_FAC * AERWDEP(LANTHC,COR)     
+      WDNACOR   = SEAS_NA_FAC * AERWDEP(LSEASC, COR) + SOIL_NA_FAC * AERWDEP(LSOILC, COR)  &
+                + CORS_NA_FAC * AERWDEP(LANTHC, COR)
+      WDMGCOR   = SEAS_MG_FAC * AERWDEP(LSEASC, COR) + SOIL_MG_FAC * AERWDEP(LSOILC, COR)  &
+                + CORS_MG_FAC * AERWDEP(LANTHC, COR)
+      WDCACOR   = SEAS_CA_FAC * AERWDEP(LSEASC, COR) + SOIL_CA_FAC * AERWDEP(LSOILC, COR)  &
+                + CORS_CA_FAC * AERWDEP(LANTHC, COR)
+      WDKCOR    = SEAS_K_FAC  * AERWDEP(LSEASC, COR) + SOIL_K_FAC  * AERWDEP(LSOILC, COR)  &
+                + CORS_K_FAC  * AERWDEP(LANTHC, COR)
+
+!     For aerosol species with both accumulation mode and coarse mode components, the accumulation
+!     mode wet deposition amount is determined by subtracting the analytically determined
+!     coarse mode deposition amount from the total (accumulation+coarse mode) species wet 
+!     deposition amount       
+      
+      AERWDEP( LFEACC, ACC ) = MAX( ( VAR( ind_WD_FEPLUS3 ) / FE_III / FE_SOL) - WDFECOR, 0.0d0 )
+      AERWDEP( LMNACC, ACC ) = MAX( ( VAR( ind_WD_MNPLUS2 ) / MN_II / MN_SOL) - WDMNCOR, 0.0d0 )                  
+      AERWDEP( LNA,  ACC )   = MAX( VAR( ind_WD_NAPLUS ) - WDNACOR, 0.0d0 )
+      AERWDEP( LCAACC, ACC ) = MAX( VAR( ind_WD_CAPLUS2 ) - WDCACOR, 0.0d0 )
+      AERWDEP( LMGACC, ACC ) = MAX( VAR( ind_WD_MGPLUS2 ) - WDMGCOR, 0.0d0 )
+      AERWDEP( LKACC, ACC )  = MAX( VAR( ind_WD_KPLUS ) - WDKCOR, 0.0d0 )
+      
+      AERWDEP( LSO4, ACC )   = MAX( VAR( ind_WD_H2SO4 ) - AERWDEP( LSO4, COR ), 0.0d0 )
+      AERWDEP( LNH4, ACC )   = MAX( VAR( ind_WD_NH4PLUS ) - AERWDEP( LNH4, COR ), 0.0d0 )
+      AERWDEP( LNO3, ACC )   = MAX( VAR( ind_WD_NO3MIN ) - AERWDEP( LNO3, COR ), 0.0d0 )
+      AERWDEP( LCL, ACC )    = MAX( VAR( ind_WD_CLMIN ) - AERWDEP( LCL, COR ), 0.0d0 )
+      
+      AERWDEP( LPRI, ACC )   = VAR( ind_WD_PRIACC )
+      AERWDEP( LEC, ACC )    = VAR( ind_WD_PECACC )
+      AERWDEP( LORGC, ACC )  = VAR( ind_WD_ORGC )
+      AERWDEP( LPOA, ACC )   = VAR( ind_WD_POAACC ) 
+      
+!  ORGANIC NITRATES   
+      AERWDEP( LCISOPND, ACC )  = VAR( ind_WD_ISOPND )      
+      AERWDEP( LCISOPNB, ACC )  = VAR( ind_WD_ISOPNB )      
+      AERWDEP( LCMVKN, ACC )    = VAR( ind_WD_MVKN )        
+      AERWDEP( LCMACRN, ACC )   = VAR( ind_WD_MACRN )      
+      AERWDEP( LCDHDN, ACC )    = VAR( ind_WD_DHDN )       
+      AERWDEP( LCIMONIT, ACC )  = VAR( ind_WD_IMONIT )     
+      AERWDEP( LCUTONIT, ACC )  = VAR( ind_WD_UTONIT )     
+      AERWDEP( LCUTONIN, ACC )  = VAR( ind_WD_UTONIN )     
+      AERWDEP( LCTONIT, ACC )   = VAR( ind_WD_TONIT )      
+      AERWDEP( LCTONIN, ACC )   = VAR( ind_WD_TONIN )      
+      AERWDEP( LCTONIH, ACC )   = VAR( ind_WD_TONIH )       
+      AERWDEP( LCHONIT, ACC )   = VAR( ind_WD_HONIT )       
+      AERWDEP( LCINHE, ACC )    = VAR( ind_WD_INHEDB )     
+      AERWDEP( LCIHPN, ACC )    = VAR( ind_WD_IHPN )        
+      AERWDEP( LCIHDPN, ACC )   = VAR( ind_WD_IHDPN )       
+      AERWDEP( LCIDHPN, ACC )    = VAR( ind_WD_IDHPN )       
+      AERWDEP( LCR4N, ACC )     = VAR( ind_WD_R4N )        
+      AERWDEP( LCR4NO, ACC )    = VAR( ind_WD_R4NO )        
+      AERWDEP( LCINPD, ACC )    = VAR( ind_WD_INPD )       
+      AERWDEP( LCINPB, ACC )    = VAR( ind_WD_INPB )        
+      AERWDEP( LCIHND, ACC )    = VAR( ind_WD_IHND )        
+      AERWDEP( LCIHNB, ACC )    = VAR( ind_WD_IHNB )       
+      AERWDEP( LCISNP, ACC )    = VAR( ind_WD_ISNP )       
+      AERWDEP( LCMTHYD, ACC )   = VAR( ind_WD_MTHYD )     
+
+!     For volatile species represented in the coarse mode -- make sure you are 
+!     not depositing more mass from the coarse mode than was calculated for the total
+
+      IF( AERWDEP( LNH4, COR ) .GT. VAR( ind_WD_NH4PLUS ) ) THEN
+          AERWDEP( LNH4, COR ) = ( 1.0d0 - FNH4ACC ) * VAR( ind_WD_NH4PLUS )
+          AERWDEP( LNH4, ACC ) = FNH4ACC * VAR( ind_WD_NH4PLUS )
+          AEROSOL( LNH4, COR ) = ( 1.0d0 - FNH4ACC ) * ( VAR( ind_L_NH4OH ) + &
+                                   VAR( ind_L_NH4PLUS ) ) * INVCFAC
+      END IF
+      
+      IF( AERWDEP( LNO3, COR ) .GT. VAR( ind_WD_NO3MIN ) ) THEN
+          AERWDEP( LNO3, COR ) = ( 1.0d0 - FNO3ACC ) * VAR( ind_WD_NO3MIN )
+          AERWDEP( LNO3, ACC ) = FNO3ACC * VAR( ind_WD_NO3MIN )
+          AEROSOL( LNO3, COR ) = ( 1.0d0 - FNO3ACC ) * ( VAR( ind_L_HNO3 ) + &
+                                   VAR( ind_L_NO3MIN ) ) * INVCFAC
+      END IF
+      
+      IF( AERWDEP( LCL, COR) .GT. VAR( ind_WD_CLMIN ) ) THEN
+          AERWDEP( LCL, COR) = ( 1.0d0 - FCLACC ) * VAR( ind_WD_CLMIN )
+          AERWDEP( LCL, ACC) = FCLACC * VAR( ind_WD_CLMIN )
+          AEROSOL( LCL, COR) = ( 1.0d0 - FCLACC ) * VAR( ind_L_CLMIN ) * INVCFAC
+      END IF      
+        
+!...AEROSOL species, accumulation mode
+           
+      AEROSOL( LPRI, ACC )  = VAR( ind_L_PRIACC ) * INVCFAC
+      AEROSOL( LEC, ACC )   = VAR( ind_L_PECACC ) * INVCFAC 
+      AEROSOL( LORGC, ACC ) = VAR( ind_L_ORGC ) * INVCFAC 
+      AEROSOL( LPOA, ACC )  = VAR( ind_L_POAACC ) * INVCFAC 
+      AEROSOL( LSOA, ACC )  = AEROSOL( LSOA, ACC ) * EXPWET   ! SOA is only impacted by wet dep process 
+                                                              ! and not included in the list of dynamic 
+                                                              ! species, VAR
+      
+      FECOR   = SOIL_FE_FAC * AEROSOL(LSOILC,COR) + CORS_FE_FAC * AEROSOL(LANTHC,COR)
+      MNCOR   = SOIL_MN_FAC * AEROSOL(LSOILC,COR) + CORS_MN_FAC * AEROSOL(LANTHC,COR)
+      NACOR   = SEAS_NA_FAC * AEROSOL(LSEASC,COR) + SOIL_NA_FAC * AEROSOL(LSOILC,COR)  &
+              + CORS_NA_FAC * AEROSOL(LANTHC,COR)
+      MGCOR   = SEAS_MG_FAC * AEROSOL(LSEASC,COR) + SOIL_MG_FAC * AEROSOL(LSOILC,COR)  &
+              + CORS_MG_FAC * AEROSOL(LANTHC,COR)
+      CACOR   = SEAS_CA_FAC * AEROSOL(LSEASC,COR) + SOIL_CA_FAC * AEROSOL(LSOILC,COR)  &
+              + CORS_CA_FAC * AEROSOL(LANTHC,COR)
+      KCOR    = SEAS_K_FAC  * AEROSOL(LSEASC,COR) + SOIL_K_FAC  * AEROSOL(LSOILC,COR)  &
+              + CORS_K_FAC  * AEROSOL(LANTHC,COR)
+      
+      AEROSOL( LFEACC, ACC ) = MAX( ( VAR( ind_L_FEPLUS3 ) / FE_III / FE_SOL - FECOR * CFACTOR ) * & 
+                                      INVCFAC, 0.0d0 )
+      AEROSOL( LMNACC, ACC ) = MAX( ( VAR( ind_L_MNPLUS2 ) / MN_II / MN_SOL - MNCOR * CFACTOR ) *  &
+                                      INVCFAC, 0.0d0 )                  
+      AEROSOL( LNA, ACC )    = MAX( ( VAR( ind_L_NAPLUS ) - NACOR * CFACTOR ) * INVCFAC, 0.0d0 )
+      AEROSOL( LCAACC, ACC ) = MAX( ( VAR( ind_L_CAPLUS2 ) - CACOR * CFACTOR ) * INVCFAC, 0.0d0 ) 
+      AEROSOL( LMGACC, ACC ) = MAX( ( VAR( ind_L_MGPLUS2 ) - MGCOR * CFACTOR ) * INVCFAC, 0.0d0 ) 
+      AEROSOL( LKACC, ACC )  = MAX( ( VAR( ind_L_KPLUS ) - KCOR * CFACTOR ) * INVCFAC, 0.0d0 ) 
+      
+      AEROSOL( LSO4, ACC ) = MAX( ( (VAR( ind_L_H2SO4 ) + VAR( ind_L_SO4MIN2 ) +    &
+                             VAR( ind_L_HSO4MIN ) ) * INVCFAC ) - AEROSOL( LSO4, COR ), 0.0d0 ) 
+      AEROSOL( LCL, ACC ) =  MAX( ( VAR( ind_L_CLMIN ) * INVCFAC ) - AEROSOL (LCL, COR ), 0.0d0 )    
+      
+      TOTAMM = VAR( ind_G_NH3 ) + VAR( ind_L_NH4OH ) + VAR( ind_L_NH4PLUS ) - &
+               AEROSOL( LNH4, COR ) * CFACTOR
+      TOTNIT = VAR( ind_G_HNO3 ) + VAR( ind_L_HNO3 ) + VAR( ind_L_NO3MIN ) -  &
+               AEROSOL( LNO3, COR ) * CFACTOR
+
+      TOTAMM = MAX( TOTAMM, 0.0d0 )
+      TOTNIT = MAX( TOTNIT, 0.0d0 )
+      
+      AEROSOL( LNO3, ACC ) = ( ( 1.0d0 - FHNO3 ) * TOTNIT ) * INVCFAC
+      AEROSOL (LNH4, ACC ) = ( ( 1.0d0 - FNH3 ) * TOTAMM ) * INVCFAC      
+      
+      AEROSOL( LCISOPND, ACC )  = VAR( ind_L_ISOPND ) * INVCFAC    
+      AEROSOL( LCISOPNB, ACC )  = VAR( ind_L_ISOPNB ) * INVCFAC     
+      AEROSOL( LCMVKN, ACC )    = VAR( ind_L_MVKN ) * INVCFAC    
+      AEROSOL( LCMACRN, ACC )   = VAR( ind_L_MACRN ) * INVCFAC     
+      AEROSOL( LCDHDN, ACC )    = VAR( ind_L_DHDN ) * INVCFAC       
+      AEROSOL( LCIMONIT, ACC )  = VAR( ind_L_IMONIT ) * INVCFAC     
+      AEROSOL( LCUTONIT, ACC )  = VAR( ind_L_UTONIT ) * INVCFAC     
+      AEROSOL( LCUTONIN, ACC )  = VAR( ind_L_UTONIN ) * INVCFAC     
+      AEROSOL( LCTONIT, ACC )   = VAR( ind_L_TONIT ) * INVCFAC      
+      AEROSOL( LCTONIN, ACC )   = VAR( ind_L_TONIN ) * INVCFAC      
+      AEROSOL( LCTONIH, ACC )   = VAR( ind_L_TONIH ) * INVCFAC       
+      AEROSOL( LCHONIT, ACC )   = VAR( ind_L_HONIT ) * INVCFAC       
+      AEROSOL( LCINHE, ACC )    = VAR( ind_L_INHEDB ) * INVCFAC     
+      AEROSOL( LCIHPN, ACC )    = VAR( ind_L_IHPN ) * INVCFAC        
+      AEROSOL( LCIHDPN, ACC )   = VAR( ind_L_IHDPN ) * INVCFAC       
+      AEROSOL( LCIDHPN, ACC )    = VAR( ind_L_IDHPN ) * INVCFAC       
+      AEROSOL( LCR4N, ACC )     = VAR( ind_L_R4N ) * INVCFAC        
+      AEROSOL( LCR4NO, ACC )    = VAR( ind_L_R4NO ) * INVCFAC        
+      AEROSOL( LCINPD, ACC )    = VAR( ind_L_INPD ) * INVCFAC       
+      AEROSOL( LCINPB, ACC )    = VAR( ind_L_INPB ) * INVCFAC        
+      AEROSOL( LCIHND, ACC )    = VAR( ind_L_IHND ) * INVCFAC        
+      AEROSOL( LCIHNB, ACC )    = VAR( ind_L_IHNB ) * INVCFAC       
+      AEROSOL( LCISNP, ACC )    = VAR( ind_L_ISNP ) * INVCFAC       
+      AEROSOL( LCMTHYD, ACC )   = VAR( ind_L_MTHYD ) * INVCFAC           
+
+!...Gas phase species
+
+      GAS(LSO2)   = ( VAR( ind_G_SO2 ) + VAR( ind_L_SO2 ) + VAR( ind_L_HSO3MIN ) + &
+                    VAR( ind_L_SO3MIN2 ) ) * INVCFAC
+      GAS(LN2O5)  = 0.0D0
+      GAS(LCO2)   = ( VAR( ind_G_CO2 ) + VAR( ind_L_H2CO3 ) + VAR( ind_L_HCO3MIN ) + & 
+                    VAR( ind_L_CO3MIN2 ) ) * INVCFAC
+      GAS(LH2O2)  = ( VAR( ind_G_H2O2 ) + VAR( ind_L_H2O2 ) ) * INVCFAC 
+      GAS(LO3)    = ( VAR( ind_G_O3 ) + VAR( ind_L_O3 ) ) * INVCFAC  
+      GAS(LFOA)   = ( VAR( ind_G_HCOOH ) + VAR( ind_L_HCOOH ) + VAR( ind_L_HCOOMIN ) ) * INVCFAC
+      GAS(LMHP)   = ( VAR( ind_G_MHP ) + VAR( ind_L_MHP ) ) * INVCFAC
+      GAS(LPAA)   = ( VAR( ind_G_PAA ) + VAR( ind_L_PAA ) ) * INVCFAC 
+      GAS(LH2SO4) = 0.0D0
+      GAS(LHCL)   = ( VAR( ind_G_HCL ) + VAR( ind_L_HCL ) ) * INVCFAC 
+      GAS(LGLY)   = ( VAR( ind_G_GLY ) + VAR( ind_L_GLY ) ) * INVCFAC
+      GAS(LMGLY)  = ( VAR( ind_G_MGLY ) + VAR( ind_L_MGLY ) ) * INVCFAC
+      GAS(LHNO3)  = ( FHNO3 * TOTNIT ) * INVCFAC
+      GAS(LNH3)   = ( FNH3 * TOTAMM ) * INVCFAC      
+!     GAS(LHO)    = ( VAR( ind_G_HO ) + VAR( ind_L_HO ) ) * INVCFAC
+
+      GAS( LISOPND ) = VAR( ind_G_ISOPND ) * INVCFAC   
+      GAS( LISOPNB ) = VAR( ind_G_ISOPNB ) * INVCFAC   
+      GAS( LMVKN ) = VAR( ind_G_MVKN ) * INVCFAC     
+      GAS( LMACRN ) = VAR( ind_G_MACRN ) * INVCFAC    
+      GAS( LDHDN ) = VAR( ind_G_DHDN ) * INVCFAC     
+      GAS( LIMONIT ) = VAR( ind_G_IMONIT ) * INVCFAC   
+      GAS( LUTONIT ) = VAR( ind_G_UTONIT ) * INVCFAC   
+      GAS( LUTONIN ) = VAR( ind_G_UTONIN ) * INVCFAC   
+      GAS( LTONIT ) = VAR( ind_G_TONIT ) * INVCFAC    
+      GAS( LTONIN ) = VAR( ind_G_TONIN ) * INVCFAC    
+      GAS( LTONIH ) = VAR( ind_G_TONIH ) * INVCFAC    
+      GAS( LHONIT ) = VAR( ind_G_HONIT ) * INVCFAC    
+      GAS( LINHED ) = VAR( ind_G_INHEDB ) * INVCFAC * FINHED   
+      GAS( LINHEB ) = VAR( ind_G_INHEDB ) * INVCFAC * (1.d0-FINHED)   
+      GAS( LIHPN ) = VAR( ind_G_IHPN ) * INVCFAC     
+      GAS( LIHDPN ) = VAR( ind_G_IHDPN ) * INVCFAC    
+      GAS( LIDHPN ) = VAR( ind_G_IDHPN ) * INVCFAC    
+      GAS( LR4N ) = VAR( ind_G_R4N ) * INVCFAC      
+      GAS( LR4NO ) = VAR( ind_G_R4NO ) * INVCFAC     
+      GAS( LINPD ) = VAR( ind_G_INPD ) * INVCFAC     
+      GAS( LINPB ) = VAR( ind_G_INPB ) * INVCFAC     
+      GAS( LIHND ) = VAR( ind_G_IHND ) * INVCFAC     
+      GAS( LIHNB ) = VAR( ind_G_IHNB ) * INVCFAC     
+      GAS( LISNP ) = VAR( ind_G_ISNP ) * INVCFAC           
+
+!...Gas phase species deposition amounts
+
+      GASWDEP( LSO2 )   = VAR( ind_WD_SO2 ) 
+      GASWDEP( LHNO3 )  = VAR( ind_WD_HNO3 )
+      GASWDEP( LN2O5 )  = 0.0D0                  ! already transferred to HNO3
+      GASWDEP( LCO2 )   = VAR( ind_WD_CO2 )
+      GASWDEP( LNH3 )   = VAR( ind_WD_NH4OH )
+      GASWDEP( LH2O2 )  = VAR( ind_WD_H2O2 )
+      GASWDEP( LO3 )    = VAR( ind_WD_O3 )
+      GASWDEP( LFOA )   = VAR( ind_WD_HCOOH )
+      GASWDEP( LMHP )   = VAR( ind_WD_MHP )
+      GASWDEP( LPAA )   = VAR( ind_WD_PAA )
+      GASWDEP( LH2SO4 ) = 0.0D0                 ! already transferred to SO4
+      GASWDEP( LHCL )   = VAR( ind_WD_HCL )
+      GASWDEP( LGLY )   = VAR( ind_WD_GLY )
+      GASWDEP( LMGLY )  = VAR( ind_WD_MGLY )
+!     GASWDEP( LHO )    = VAR( ind_WD_HO )
+         
+! Convert to appropriate units (mol / m2)
+     
+      DO I = 1,NGAS
+         GASWDEP( I ) = GASWDEP( I ) * WFACTOR
+      END DO
+     
+      DO J = 1, NMODES
+      DO I = 1, NAER
+         AERWDEP( I, J ) = AERWDEP( I, J ) * WFACTOR
+      END DO
+      END DO     
+     
+      DO I = 1, NGAS
+         IF( GAS( I ) .LT. 0.0d0 )     GAS( I ) = 0.0d0
+         IF( GASWDEP( I ) .LT. 0.0d0 ) GASWDEP( I ) = 0.0d0
+      END DO
+     
+      DO J =1, NMODES
+      DO I =1, NAER
+         IF( AEROSOL( I, J ) .LT. 0.d0 ) AEROSOL( I, J ) = 0.d0
+         IF( AERWDEP( I, J ) .LT. 0.d0 ) AERWDEP( I, J ) = 0.d0
+      END DO
+      END DO  
+
+!...Store the amount of hydrogen deposition
+
+      HPWDEP = VAR( ind_WD_HPLUS ) * WFACTOR
+      BETASO4 = 0.0D0
+      DEPSUM =  AERWDEP( LSO4, ACC ) / WFACTOR
+      
+      IF( AEROSOL( LSO4, ACC ) * CFACTOR + DEPSUM .GT. 0.0d0 ) THEN
+         BETASO4 = DEPSUM / ( AEROSOL( LSO4, ACC ) * CFACTOR + DEPSUM ) / &
+                   TAUCLD      
+      ELSE
+         BETASO4 = 0.d0
+      END IF
+      
+      AEROSOL( LNUM, ACC ) = AEROSOL( LNUM, ACC ) * EXP( -BETASO4 * TAUCLD )
+      
+#ifdef verbose_aqchem
+      Write( logdev, * ) "AQCHEM VERBOSE OUT"
+      Write( logdev, * ) TEMP2, PRES_PA, TAUCLD
+      Write( logdev, * ) PRCRATE, WCAVG, WTAVG 
+      Write( logdev, * ) AIRM, ALFA0, ALFA2, ALFA3
+      Write( logdev, * ) "GAS"
+      Write( logdev, * ) GAS
+      Write( logdev, * ) "N, GAS (NGAS)"
+      DO I = 1,NGAS
+      Write( logdev, * ) I, GAS(I)
+      ENDDO
+      Write( logdev, * ) "AEROSOL"
+      Write( logdev, * ) AEROSOL
+      Write( logdev, * ) "spc, mode, AEROSOL(NAER,NMOD)"
+      DO J=1, 3
+      DO I=1, NAER
+      Write( logdev, * ) I, J, AEROSOL(I,J)
+      ENDDO
+      ENDDO
+      Write( logdev, * ) "DARK"
+      Write( logdev, * ) DARK
+      Write( logdev, * ) "HPWDEP", HPWDEP
+      Write( logdev, * ) "BETASO4", BETASO4
+      Write( logdev, * ) "GASWDEP"
+      Write( logdev, * ) GASWDEP
+      Write( logdev, * ) "AERWDEP"
+      Write( logdev, * ) AERWDEP
+      Write( logdev, * ) " "
+      Write( logdev, * ) " AQCHEM VERBOSE OUT DONE"	
+      Write( logdev, * ) "+++++++++++++++++++++++++"	  
+
+      STOP  
+	
+#endif      
+     
+      RETURN
+
+!...formats
+
+      END
